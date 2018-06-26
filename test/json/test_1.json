@@ -1,0 +1,11 @@
+{
+    "name": "fruit",
+    "count": 3,
+    "apple":{
+        "price": 1.5,
+        "count": 10,
+        "note": "note"
+    },
+    "0": 100,
+    "appkey": "01234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+}
