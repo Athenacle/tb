@@ -1,5 +1,4 @@
 
-FIND_PACKAGE(Threads REQUIRED)
 
 # Enable ExternalProject CMake module
 INCLUDE(ExternalProject)

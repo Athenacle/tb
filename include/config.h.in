@@ -8,4 +8,12 @@
 
 #cmakedefine PROJECT_BUILD_PATH "@PROJECT_BUILD_PATH@"
 
+#cmakedefine UNIX_HAVE_PRCTL "@UNIX_HAVE_PRCTL@"
+
+#cmakedefine UNIX_HAVE_SYS_PRCTL "@UNIX_HAVE_SYS_PRCTL@"
+
+#cmakedefine USE_POSIX_THREAD "@POSIX_THREAD@"
+
+#cmakedefine USE_CXX_THREAD "@CXX_THREAD@"
+
 #endif
