@@ -34,7 +34,7 @@ namespace
         snprintf(lastEndOfTime, timeBuffSize - (lastEndOfTime - &buf[0]), ":%ld", spec.tv_nsec);
         return buf;
     }
-}
+}  // namespace
 
 
 void* StartLog(void*)
@@ -50,17 +50,21 @@ void* StartLog(void*)
 namespace tb
 {
     Logger* Logger::instance = nullptr;
+    boost::object_pool<Logger::LogMessageObject>* Logger::objPool = nullptr;
+    boost::pool<>* Logger::LogMessageObject::charPool;
 
-    Logger::LogMessageObject::LogMessageObject(pthread_t _tid,
-                                               LogSeverity _severity,
-                                               const char* _msg,
-                                               const char* _timestamp)
-        : severity(_severity), tid(_tid)
+    void Logger::LogMessageObject::Setup(pthread_t _tid,
+                                         LogSeverity _severity,
+                                         const char* _msg,
+                                         const char* _timestamp)
     {
         static const char logSeverityString[][8] = {
             "TRACE", "DEBUG", "INFO", "WARNING", "ERROR", "FATAL", "NONE"};
+
+        severity = _severity;
+        tid = _tid;
         size_t size = strlen(_msg) + strlen(_timestamp) + 64;
-        msg = new char[size];
+        msg = static_cast<char*>(Logger::LogMessageObject::charPool->ordered_malloc(size));
         length = snprintf(msg,
                           size,
                           "%s - [%s] - %lx - %s \n",
@@ -72,9 +76,8 @@ namespace tb
 
     Logger::LogMessageObject::~LogMessageObject()
     {
-        delete[] msg;
+        Logger::LogMessageObject::charPool->free(msg);
     }
-
 
     void Logger::StartThread()
     {
@@ -85,7 +88,7 @@ namespace tb
     {
         for (auto& bd : fileBackends) {
             close(std::get<FD>(bd));
-            delete []std::get<FILENAME>(bd);
+            delete[] std::get<FILENAME>(bd);
         }
         close(PRESERVED_STDOUT_FILENO);
     }
@@ -106,7 +109,10 @@ namespace tb
         if (log) {
             // only print log when accept
             msgQueueMutex.lock();
-            LogMessageObject* msgObj = new LogMessageObject(tid, severity, msg, getTimeStamp());
+            LogMessageObject* msgObj = Logger::objPool->construct();
+
+            //msgQueueMutex lock actually LOCKED the static buffer in getTimeStamp
+            msgObj->Setup(tid, severity, msg, getTimeStamp());
             this->msgQueue.push(msgObj);
             msgQueueCond.notify_all();
             msgQueueMutex.unlock();
@@ -145,7 +151,7 @@ namespace tb
             } else {
                 write(STDERR_FILENO, obj->msg, obj->length);
             }
-            delete obj;
+            Logger::objPool->destroy(obj);
         }
     }
 
@@ -169,7 +175,7 @@ namespace tb
             delete[] buf;
         } else {
             fchmod(fd, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-            char *path = new char[strlen(filename) + 1];
+            char* path = new char[strlen(filename) + 1];
             strcpy(path, filename);
             backendsMutex.lock();
             fileBackends.push_back(std::make_tuple(fd, defaultSeverity, path));
@@ -199,6 +205,10 @@ namespace tb
                 msgMtx.unlock();
                 Logger::instance->logger.join();
                 delete Logger::instance;
+                delete Logger::objPool;
+                Logger::LogMessageObject::charPool->~pool<>();
+                free(Logger::LogMessageObject::charPool);
+                Logger::objPool = nullptr;
                 Logger::instance = nullptr;
                 break;
             }
@@ -208,9 +218,13 @@ namespace tb
     Logger& Logger::getLogger()
     {
         if (Logger::instance == nullptr) {
+            Logger::objPool = new boost::object_pool<Logger::LogMessageObject>;
             Logger::instance = new Logger();
             Logger::instance->StartThread();
+            auto pool =
+                static_cast<boost::pool<>*>(malloc(sizeof *Logger::LogMessageObject::charPool));
+            Logger::LogMessageObject::charPool = new (pool) boost::pool<>(sizeof(char));
         }
         return *Logger::instance;
     }
-}
+}  // namespace tb

@@ -9,7 +9,8 @@
 #include <string>
 #include <tuple>
 #include <vector>
-
+#include <boost/pool/pool.hpp>
+#include <boost/pool/object_pool.hpp>
 
 using std::queue;
 using std::string;
@@ -47,16 +48,20 @@ namespace tb
         friend void* ::StartLog(void*);
 
         struct LogMessageObject {
+            static boost::pool<> *charPool;
             char* msg;
             size_t length;
             LogSeverity severity;
             pthread_t tid;
 
-            LogMessageObject(pthread_t, LogSeverity, const char*, const char*);
+            LogMessageObject(const LogMessageObject&) = delete;
+            LogMessageObject(){}
+            void Setup(pthread_t, LogSeverity, const char*, const char*);
             ~LogMessageObject();
         };
 
     private:
+        static boost::object_pool<Logger::LogMessageObject> *objPool;
         static Logger* instance;
 
         vector<FileLogObject> fileBackends;
