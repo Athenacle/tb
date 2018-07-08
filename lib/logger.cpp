@@ -31,18 +31,19 @@ namespace
             struct tm* gmt = gmtime(&spec.tv_sec);
             lastEndOfTime = &buf[strftime(buf, timeBuffSize, timeFormat, gmt)];
         }
-        snprintf(lastEndOfTime, timeBuffSize - (lastEndOfTime - &buf[0]), ":%ld", spec.tv_nsec);
+        snprintf(lastEndOfTime, timeBuffSize - (lastEndOfTime - &buf[0]), ":%-9ld", spec.tv_nsec);
         return buf;
     }
 }  // namespace
 
 
-void* StartLog(void*)
+void* StartLog(void* b)
 {
     tb::Logger::instance->TID = tb::thread_ns::getTID();
-#if defined UNIX_HAVE_PRCTL && defined UNIX_HAVE_PRCTL
-    prctl(PR_SET_NAME, "logger");
-#endif
+    tb::thread_ns::SetThreadName("logger");
+    if (b != nullptr) {
+        reinterpret_cast<tb::thread_ns::barrier*>(b)->wait();
+    }
     tb::Logger::instance->InternalLogWriter();
     return nullptr;
 }
@@ -52,6 +53,7 @@ namespace tb
     Logger* Logger::instance = nullptr;
     boost::object_pool<Logger::LogMessageObject>* Logger::objPool = nullptr;
     boost::pool<>* Logger::LogMessageObject::charPool;
+    mutex Logger::objPoolMutex;
 
     void Logger::LogMessageObject::Setup(pthread_t _tid,
                                          LogSeverity _severity,
@@ -79,9 +81,9 @@ namespace tb
         Logger::LogMessageObject::charPool->free(msg);
     }
 
-    void Logger::StartThread()
+    void Logger::StartThread(barrier* b)
     {
-        logger = thread(::StartLog, nullptr);
+        logger = thread(::StartLog, b);
     }
 
     Logger::~Logger()
@@ -102,17 +104,20 @@ namespace tb
 
     void Logger::LogProcessor(pthread_t tid, LogSeverity severity, const char* msg)
     {
+        static auto& m = Logger::objPoolMutex;
         bool log = false;
         acceptNewLog.lock();
         log = Logger::instance->newLog;
         acceptNewLog.unlock();
         if (log) {
             // only print log when accept
-            msgQueueMutex.lock();
-            LogMessageObject* msgObj = Logger::objPool->construct();
 
-            //msgQueueMutex lock actually LOCKED the static buffer in getTimeStamp
+            m.lock();
+            LogMessageObject* msgObj = Logger::objPool->construct();
             msgObj->Setup(tid, severity, msg, getTimeStamp());
+            m.unlock();
+
+            msgQueueMutex.lock();
             this->msgQueue.push(msgObj);
             msgQueueCond.notify_all();
             msgQueueMutex.unlock();
@@ -121,6 +126,7 @@ namespace tb
 
     void Logger::InternalLogWriter()
     {
+        static auto& m = Logger::objPoolMutex;
         while (true) {
             msgQueueCond.wait(msgQueueMutex,
                               [this] { return stopping || this->msgQueue.size() > 0; });
@@ -140,7 +146,7 @@ namespace tb
             if (fileBackends.size() > 0) {
                 backendsMutex.lock();
                 for (auto& bd : fileBackends) {
-                    if (std::get<SEVERITY>(bd) >= obj->severity) {
+                    if (std::get<SEVERITY>(bd) > obj->severity) {
                         continue;
                     } else {
                         int fd = std::get<FD>(bd);
@@ -151,7 +157,9 @@ namespace tb
             } else {
                 write(STDERR_FILENO, obj->msg, obj->length);
             }
+            m.lock();
             Logger::objPool->destroy(obj);
+            m.unlock();
         }
     }
 
@@ -164,9 +172,17 @@ namespace tb
         return *this;
     }
 
-    Logger& Logger::AddFileBackend(const char* filename, const LogSeverity defaultSeverity)
+    Logger& Logger::AddFileBackend(const char* filename,
+                                   const LogSeverity defaultSeverity,
+                                   bool append)
     {
-        int fd = open(filename, O_APPEND | O_CREAT | O_WRONLY);
+        const unsigned int openFlag = O_CREAT | O_WRONLY;
+        int fd = -1;
+        if (append) {
+            fd = open(filename, openFlag | O_APPEND);
+        } else {
+            fd = open(filename, openFlag);
+        }
         if (fd == -1) {
             size_t size = strlen(filename) + 64;
             char* buf = new char[size];
@@ -174,6 +190,9 @@ namespace tb
             log_FATAL(buf);
             delete[] buf;
         } else {
+            if (!append) {
+                ftruncate(fd, 0);
+            }
             fchmod(fd, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
             char* path = new char[strlen(filename) + 1];
             strcpy(path, filename);
@@ -215,12 +234,12 @@ namespace tb
         } while (true);
     }
 
-    Logger& Logger::getLogger()
+    Logger& Logger::getLogger(barrier* b)
     {
         if (Logger::instance == nullptr) {
             Logger::objPool = new boost::object_pool<Logger::LogMessageObject>;
             Logger::instance = new Logger();
-            Logger::instance->StartThread();
+            Logger::instance->StartThread(b);
             auto pool =
                 static_cast<boost::pool<>*>(malloc(sizeof *Logger::LogMessageObject::charPool));
             Logger::LogMessageObject::charPool = new (pool) boost::pool<>(sizeof(char));

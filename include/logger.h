@@ -5,12 +5,12 @@
 #include "taobao.h"
 
 #include <sys/types.h>
+#include <boost/pool/object_pool.hpp>
+#include <boost/pool/pool.hpp>
 #include <queue>
 #include <string>
 #include <tuple>
 #include <vector>
-#include <boost/pool/pool.hpp>
-#include <boost/pool/object_pool.hpp>
 
 using std::queue;
 using std::string;
@@ -48,20 +48,22 @@ namespace tb
         friend void* ::StartLog(void*);
 
         struct LogMessageObject {
-            static boost::pool<> *charPool;
+            static boost::pool<>* charPool;
+
             char* msg;
             size_t length;
             LogSeverity severity;
             pthread_t tid;
 
             LogMessageObject(const LogMessageObject&) = delete;
-            LogMessageObject(){}
+            LogMessageObject() {}
             void Setup(pthread_t, LogSeverity, const char*, const char*);
             ~LogMessageObject();
         };
 
     private:
-        static boost::object_pool<Logger::LogMessageObject> *objPool;
+        static mutex objPoolMutex;
+        static boost::object_pool<Logger::LogMessageObject>* objPool;
         static Logger* instance;
 
         vector<FileLogObject> fileBackends;
@@ -78,9 +80,9 @@ namespace tb
         bool newLog;
         bool stopping;
 
-
         Logger();
         ~Logger();
+
         void SetAccept()
         {
             newLog = true;
@@ -88,27 +90,24 @@ namespace tb
 
         void InternalLogWriter();
 
-        void StartThread();
+        void StartThread(barrier*);
 
     public:
-        Logger& AddFileBackend(const char*, const LogSeverity = INFO);
+        Logger& AddFileBackend(const char*, const LogSeverity = INFO, bool = false);
         Logger& AddConsoleBackend(const LogSeverity = INFO);
         void LogProcessor(pthread_t, LogSeverity, const char*);
-        static Logger& getLogger();
+        static Logger& getLogger(barrier* = nullptr);
         static void DestoryLogger();
     };
 }  // namespace tb
 
-#define BASE_MACRO(severity, tid, msg)                                \
-    do {                                                              \
-        tb::Logger::getLogger().LogProcessor(tid, tb::severity, msg); \
-    } while (false);
 
-#define BUILD_FUNCTION(severity)                  \
-    inline void log_##severity(const char* msg)   \
-    {                                             \
-        BASE_MACRO(severity, pthread_self(), msg) \
+#define BUILD_FUNCTION(severity)                                                 \
+    inline void log_##severity(const char* msg)                                  \
+    {                                                                            \
+        tb::Logger::getLogger().LogProcessor(pthread_self(), tb::severity, msg); \
     }
+
 
 BUILD_FUNCTION(TRACE);
 BUILD_FUNCTION(DEBUG);
