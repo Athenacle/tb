@@ -46,14 +46,14 @@ namespace
         }
     }
 
-    inline char *SearchNul(char *str)
+    inline char *SearchNul(char *str, char c)
     {
-        while (*str) {
+        while (*str && *str != c) {
             str++;
         }
         return str;
     }
-};
+};  // namespace
 
 
 namespace tb::settings
@@ -109,4 +109,4 @@ namespace tb::settings
         }
         return true;
     }
-}
+}  // namespace tb::settings

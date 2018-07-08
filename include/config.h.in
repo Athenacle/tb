@@ -16,4 +16,12 @@
 
 #cmakedefine USE_CXX_THREAD @CXX_THREAD@
 
+#cmakedefine BOOST_VERSION "@BOOST_VERSION@"
+
+#cmakedefine USE_ZLIB @USE_ZLIB@
+
+#cmakedefine ZLIB_VERSION "@ZLIB_VERSION@"
+
+#cmakedefine USE_INOTIFY @USE_INOTIFY@
+
 #endif

@@ -46,6 +46,7 @@ namespace tb
                 global = nullptr;
             }
 
+            static bool checkPathExists(const char*);
             static bool Read(const char*, settings::Value&);
         };
     };
