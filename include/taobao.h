@@ -3,7 +3,6 @@
  *
  */
 
-
 #ifndef TAOBAO_SHARED_H
 #define TAOBAO_SHARED_H
 
@@ -11,10 +10,14 @@
 #include "config.h"
 #endif
 
+#ifdef UNIX_HAVE_SYS_PRCTL
+#include <sys/prctl.h>
+#endif
+
 #ifdef USE_CXX_THREAD
-#include <condition_variable>
-#include <mutex>
-#include <thread>
+#include <boost/thread/condition_variable.hpp>
+#include <boost/thread/mutex.hpp>
+#include <boost/thread/thread.hpp>
 #elif defined USE_POSIX_THREAD
 #include <pthread.h>
 #include <functional>
@@ -29,20 +32,28 @@ namespace tb
 
     namespace thread_ns
     {
+        inline void SetThreadName(const char* n)
+        {
+#if defined UNIX_HAVE_PRCTL && defined UNIX_HAVE_SYS_PRCTL
+            prctl(PR_SET_NAME, n);
+#endif
+        }
+
 #ifdef USE_CXX_THREAD
-        using std::mutex;
-        using std::thread;
-        using tid = std::thread::id;
+        using boost::mutex;
+        using boost::thread;
+
+        using tid = boost::thread::id;
 
         inline tid getTID()
         {
-            return std::this_thread::get_id();
+            return boost::this_thread::get_id();
         }
 
         class condition_variable
         {
         private:
-            std::condition_variable _cv;
+            boost::condition_variable _cv;
 
         public:
             condition_variable() : _cv() {}
@@ -64,7 +75,7 @@ namespace tb
             template <class Predicate>
             void wait(mutex& lock, Predicate pred)
             {
-                std::unique_lock<std::mutex> __lock(lock);
+                boost::unique_lock<boost::mutex> __lock(lock);
                 _cv.wait(__lock, pred);
             }
         };
@@ -171,7 +182,28 @@ namespace tb
                 pthread_join(TID, retVal);
             }
         };
+
+        class barrier
+        {
+            pthread_barrier_t _b;
+
+        public:
+            barrier(unsigned int i)
+            {
+                pthread_barrier_init(&_b, nullptr, i);
+            }
+            void wait()
+            {
+                pthread_barrier_wait(&_b);
+            }
+            ~barrier()
+            {
+                pthread_barrier_destroy(&_b);
+            }
+        };
 #endif
+
+
     }  // namespace thread_ns
 }  // namespace tb
 
