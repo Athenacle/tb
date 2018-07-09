@@ -1,15 +1,23 @@
 
 #include "image.h"
+#include "id.h"
+
 #include <zbar.h>
 #include <iostream>
 #include <vector>
 
+#define ENABLE_SHOW
+
+#ifdef ENABLE_SHOW
 #define SHOW(m)                                 \
     do {                                        \
         cv::namedWindow(#m, cv::WINDOW_NORMAL); \
         cv::imshow(#m, m);                      \
         cv::waitKey(0);                         \
     } while (0);
+#else
+#define SHOW(m)
+#endif
 
 namespace
 {
@@ -56,7 +64,7 @@ namespace
                 rect = t;
             }
         }
-        if (rect.height < 10) {
+        if (rect.height > rect.width) {
             return -1;
         } else {
             roi = Rect(rect.x, rect.y + cuttedHeight, rect.width, rect.height);
@@ -65,7 +73,7 @@ namespace
     }
 
     // identify bar code via zbar
-    int zbarCodeIdentify(const cv::Mat& raw, const cv::Rect& roi, char* code, size_t length)
+    int zbarCodeIdentify(const cv::Mat& raw, const cv::Rect& roi, std::string& bcode)
     {
         using namespace cv;
         using namespace zbar;
@@ -83,14 +91,8 @@ namespace
             auto results = scanner.get_results();
             assert(results.get_size() == 1);
             auto begin = results.symbol_begin();
-            const char* str = begin->get_data().c_str();
-            if (length <= strlen(str)) {
-                return -2;
-            } else {
-                strcpy(code, str);
-                std::cout << code;
-                return 1;
-            }
+            bcode = begin->get_data();
+            return 1;
         } else if (n < 0) {
             return -1;
         } else {
@@ -99,30 +101,45 @@ namespace
     }
 
 
-    int tesseractCodeIdentify(cv::Mat& raw, const cv::Rect& roi, char* code, size_t length)
+    int tesseractCodeIdentify(cv::Mat& raw,
+                              const cv::Rect& roi,
+                              std::string& fcode,
+                              std::string& bcode)
     {
         using namespace cv;
         using namespace tesseract;
-        Rect large(roi.x - 80, roi.y - 35, roi.width + 110, roi.height + 80);
-        rectangle(raw, large, Scalar(255, 0), 1);
+        using namespace only;
+
+        if (roi.x < 100 || roi.y < 50) {
+            return 0;
+        }
+
+
+        Rect large(roi.x - 80, roi.y - 40, roi.width + 110, roi.height + 80);
+        rectangle(raw, large, Scalar(255, 0), 2);
         Rect small;
         opencvFindBarCodeROI(raw, small, 3, Size(6, 5));
-        Scalar color = raw.at<Vec3b>(small.x - 10, small.y + 10);
-        rectangle(raw, small, color, -1);
+        rectangle(raw, small, Scalar(255, 255, 255), -1);
         Mat ocrRegion;
-        cvtColor(raw(large), ocrRegion, COLOR_RGB2GRAY);
+        resize(raw(large), ocrRegion, Size(0,0),2,2);
+        cvtColor(ocrRegion, ocrRegion, COLOR_RGB2GRAY);
+        SHOW(ocrRegion)
+        Mat resultMat;
+        threshold(ocrRegion, resultMat, 180, 255, CV_THRESH_BINARY);
+        SHOW(resultMat);
+
         TessBaseAPI* tess = fc::tessEngine;
         tess->Clear();
-        tess->SetImage(reinterpret_cast<unsigned char*>(ocrRegion.data),
-                       ocrRegion.size().width,
-                       ocrRegion.size().height,
-                       ocrRegion.channels(),
-                       ocrRegion.step1());
+        tess->SetImage(reinterpret_cast<unsigned char*>(resultMat.data),
+                       resultMat.size().width,
+                       resultMat.size().height,
+                       resultMat.channels(),
+                       resultMat.step1());
         tess->GetUTF8Text();
         const char* out = tess->GetUTF8Text();
-        std::cout << out;
+        int ret = only::checkOcrOutput(out, fcode, bcode) ? 1 : 0;
         delete[] out;
-        return 0;
+        return ret;
     }
 
 }  // namespace
@@ -158,25 +175,53 @@ namespace fc
         imageMat = cv::imread(filename, cv::IMREAD_COLOR);
     }
 
-    int Image::getBarCode(char* code, size_t length)
+    int Image::getItemCode(std::string& fcode, std::string& bcode)
     {
-        *code = 0;
         cv::Rect rect;
         int ret = opencvFindBarCodeROI(imageMat, rect);
         if (ret == -1) {
             return 0;
         }
         Mat tmp = imageMat(rect);
-        int status = -1;
-        status = zbarCodeIdentify(imageMat, rect, code, length);
-        if (status == 1) {
-            //zbarCodeIdentify get result successfully.
-            return 1;
-        } else {
-            //try tesseract to get result.
-            status = tesseractCodeIdentify(imageMat, rect, code, length);
-            return 0;
+        int zstatus = -1;
+        int tstatus = -1;
+
+        ret = 0;
+        std::string teFCode, teBCode;
+        teFCode = teBCode = "";
+        zstatus = zbarCodeIdentify(imageMat, rect, bcode);
+        tstatus = tesseractCodeIdentify(imageMat, rect, teFCode, teBCode);
+        if (zstatus == 1
+            && only::checkBarCodeValidate(bcode)) {  // zbar success. Bar Code MUST be TRUE.
+            ret = ret | ZBAR_OK;                     // 1
         }
+        if (tstatus == 1) {            //teseract success
+            ret = ret | TESSERACT_OK;  // 2
+            fcode = teFCode;
+            if (bcode.length() == 0) {
+                bcode = teBCode;
+            }
+            if (only::checkFullBarCode(teFCode, teBCode)) {
+                ret = ret | TESSERACT_FULL_BARCODE_VALID;  // 4
+            } else {
+                std::string result;
+                if (only::restoreFullCode(teFCode, teBCode, result)) {
+                    fcode = result;
+                    ret = ret | TESSERACT_FULL_BARCODE_VALID;
+                }
+            }
+        }
+        if (zstatus == 1 && tstatus == 1) {
+            if (bcode == teBCode) {
+                ret = ret | TESSERACT_ZBAR_BARCODE_EQ;  // 8
+            }
+        }
+        if ((ret & TESSERACT_ZBAR_BARCODE_EQ) == TESSERACT_ZBAR_BARCODE_EQ) {
+            if (only::checkFullBarCode(teFCode, bcode)) {
+                ret = ret | ALL_CODE_VALIDATE_OK;  // 16
+            }
+        }
+        return ret;
     }
 
     int Image::WriteToFile(const char* filename)
@@ -194,6 +239,7 @@ namespace fc
             delete tessEngine;
             tessEngine = nullptr;
         }
+        return 0;
     }
 
     int ImageProcessingStartup()

@@ -2,12 +2,14 @@
 #ifndef IMAGE_H
 #define IMAGE_H
 
+#include <string>
 #include <leptonica/allheaders.h>
 #include <tesseract/baseapi.h>
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 
+#include "taobao.h"
 #ifdef ENABLE_LOGGER
 #include "logger.h"
 #endif
@@ -17,6 +19,14 @@ namespace fc
     using cv::Mat;
 
     extern tesseract::TessBaseAPI* tessEngine;
+
+    enum {
+          ZBAR_OK = 1,
+          TESSERACT_OK = 2,
+          TESSERACT_FULL_BARCODE_VALID  = 4,
+          TESSERACT_ZBAR_BARCODE_EQ = 8,
+          ALL_CODE_VALIDATE_OK = 16
+    };
 
     namespace img_error
     {
@@ -29,6 +39,9 @@ namespace fc
             "Trsseract OCR Engine Start Failed."           // 1
         };
     }  // namespace img_error
+
+    const size_t FULL_CODE_BUFFER_LENGTH = 16;
+    const size_t BAR_CODE_BUFFER_LENGTH = 16;
 
     class Image
     {
@@ -48,7 +61,7 @@ namespace fc
         //          0  -> no code recognized
         //         -1  -> zbar internal error
         //         -2  -> buffer too small.
-        int getBarCode(char*, size_t);
+        int getItemCode(std::string&, std::string&);
     };
 
     int ImageProcessingStartup();
