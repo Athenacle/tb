@@ -52,6 +52,7 @@ namespace fc
     };
 
     int ImageProcessingStartup();
+    int ImageProcessingDestroy();
 };  // namespace fc
 
 

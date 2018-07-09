@@ -1,6 +1,7 @@
 
 #include "fchecker.h"
 #include "logger.h"
+#include "image.h"
 
 #include <fcntl.h>
 #include <sys/mman.h>
@@ -199,11 +200,13 @@ void fcInit(const char *json)
     StartLog(doc, &b);
     StartSystem(doc);
     CloseFile(buffer);
+    fc::ImageProcessingStartup();
 }
 
 void fcExit()
 {
     Logger::DestoryLogger();
+    fc::ImageProcessingDestroy();
     releaseMemory(globalConfig.path);
     releaseMemory(globalConfig.rawPath);
     releaseMemory(globalConfig.productPath);

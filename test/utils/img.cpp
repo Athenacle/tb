@@ -27,6 +27,7 @@ int doit(const char *fn)
 
 int main(int argc, char* argv[])
 {
+    fc::ImageProcessingStartup();
     if (argc == 0){
         cerr << "usage: ./imgTest <file list>" << endl;
         return -1;
@@ -35,4 +36,5 @@ int main(int argc, char* argv[])
             doit(argv[i]);
         }
     }
+    fc::ImageProcessingDestroy();
 }
