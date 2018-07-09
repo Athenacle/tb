@@ -1,0 +1,5 @@
+
+IF(UNIX)
+  FIND_PACKAGE(PkgConfig QUIET)
+  PKG_CHECK_MODULES(zbar REQUIRED openssl)
+ENDIF()

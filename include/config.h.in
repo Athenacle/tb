@@ -24,4 +24,10 @@
 
 #cmakedefine USE_INOTIFY @USE_INOTIFY@
 
+#cmakedefine ZBAR_VERSION "@ZBAR_VERSION@"
+
+#cmakedefine TESSERACT_VERSION_STRING "@TESSERACT_VERSION@"
+
+#cmakedefine OPENCV_VERSION "@OPENCV_VERSION@"
+
 #endif
