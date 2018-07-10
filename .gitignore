@@ -2,3 +2,4 @@
 build/
 include/config.h
 compile_commands.json
+/config.json
