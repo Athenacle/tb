@@ -2,6 +2,7 @@
 #include "id.h"
 #include <boost/algorithm/string.hpp>
 #include <boost/regex.hpp>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -12,21 +13,21 @@ namespace only
 
     bool checkBarCodeValidate(const std::string& bar)
     {
-        static regex barCode("^[123][012]\\d[1234][0-9A-Z]{5}\\d{4}$", regex::perl | regex::icase);
+        static const regex barCode("^[123][012]\\d[1234][0-9A-Z]{5}\\d{4}$", regex::perl);
         return regex_match(bar, barCode);
     }
 
 
     bool checkFullCode(const std::string& _code)
     {
-        static regex fullCode("^[123][012]\\d[1234][0-9A-Z]{5}[A-Z0-9]{2}\\d{3}",
-                              regex::perl | regex::icase);
+        static const regex fullCode("^[123][012]\\d[1234][0-9A-Z]{5}[A-Z0-9]{2}\\d{3}",
+                                    regex::perl);
         return regex_match(_code, fullCode);
     }
 
     bool restoreFullCode(const std::string& raw, const std::string& bar, std::string& result)
     {
-        static regex fullCodeSuffix("\\d*[A-Z0-9]{3}[0-9]{3}$", regex::perl | regex::icase);
+        static const regex fullCodeSuffix("\\d*[A-Z0-9]{3}[0-9]{3}$", regex::perl);
         auto start = raw.cbegin();
         auto end = raw.cend();
 
@@ -55,7 +56,7 @@ namespace only
 
     bool checkOcrOutput(const char* ocr, std::string& fcode, std::string& bcode)
     {
-        static regex separator("\\s");
+        static const regex separator("\\s");
         std::vector<std::string> splited;
         boost::algorithm::split(splited, ocr, boost::algorithm::is_space());
         splited.erase(
@@ -70,4 +71,13 @@ namespace only
         return false;
     }
 
+    int checkPrice(const std::string& s)
+    {
+        const unsigned char* cp = reinterpret_cast<const unsigned char*>(s.c_str());
+        if (cp[0] == 0xef && cp[1] == 0xbf && cp[2] == 0xa5) {
+            auto price = s.substr(1, s.length());
+            return atoi(s.c_str() + 3);
+        }
+        return -1;
+    }
 }  // namespace only

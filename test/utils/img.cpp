@@ -12,14 +12,16 @@ int doit(const char *fn)
     if (::access(fn, R_OK) != 0) {
         return (-1);
     }
+    int price;
     fc::Image i(fn);
     const size_t size = 64;
     char *buffer = new char[size];
     std::string fcode, bcode;
 
-    int ret = i.getItemCode(fcode, bcode);
-    cout << fn << ": " << ret << "\tfull: ";
-    cout << fcode << " bar: " << bcode << endl;
+    int ret = i.getItemCode(fcode, bcode, price);
+    cerr << endl
+         << fn << ": " << ret << "\tfull: " << fcode << " bar: " << bcode << " price: " << price
+         << endl;
     delete[] buffer;
     return 0;
 }

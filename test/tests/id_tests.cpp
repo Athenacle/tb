@@ -29,3 +29,9 @@ TEST(REGEX_TEST, restoreFullCode)
 
     EXPECT_FALSE(restoreFullCode("11834300J19130", "12345678999999", code));
 }
+
+TEST(REGEX_TEST, price)
+{
+    EXPECT_EQ(checkPrice("￥299"), 299);
+    EXPECT_EQ(checkPrice("\uffe5299"), 299);
+}

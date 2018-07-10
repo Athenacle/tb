@@ -2,13 +2,13 @@
 #ifndef IMAGE_H
 #define IMAGE_H
 
+#include <cstdint>
 #include <map>
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 #include <queue>
 #include <string>
-#include <cstdint>
 #include "taobao.h"
 
 #ifdef ENABLE_LOGGER
@@ -23,20 +23,23 @@ namespace fc
 
     enum {
         ZBAR_OK = 1,
-        TESSERACT_OK = 2,
-        TESSERACT_FULL_BARCODE_VALID = 4,
-        TESSERACT_ZBAR_BARCODE_EQ = 8,
-        ALL_CODE_VALIDATE_OK = 16
+        OCR_OK = 2,
+        OCR_GET_FULL_CODE = 4,
+        OCR_GET_BAR_CODE = 8,
+        FULL_BAR_CODE_VALID = 16,
+        ALL_CODE_VALIDATE_OK = 32,
+        ZBAR_OCR_BAR_CODE_EQUAL = 64,
+        OCR_GET_PRICE_OK = 128
     };
+
     namespace img_error
     {
         using scode = const unsigned int;
+
         scode IP_OK = 0;
-        scode IP_OCR_ERROR = 1;
 
         const char* const err[48] = {
             "Image Processing Engine Start Successfully."  // 0
-            "Trsseract OCR Engine Start Failed."           // 1
         };
     }  // namespace img_error
 
@@ -55,19 +58,16 @@ namespace fc
         int OpenImageFile(const char*);
         int WriteToFile(const char* = nullptr);
 
-        //int getBarCode(char* destBuffer, int bufferSize)
-        //destBuffer must been allocated with bufferSize length including terminating null
-        //ret val:  1  -> success
-        //          0  -> no code recognized
-        //         -1  -> zbar internal error
-        //         -2  -> buffer too small.
-        int getItemCode(std::string&, std::string&);
+        int getItemCode(std::string&, std::string&, int& price);
     };
 
     using std::string;
 
-    struct OcrResult
-    {
+    struct OcrResult {
+    private:
+        bool __find(std::string&, std::function<bool(const std::string&)>) const;
+
+    public:
         uint64_t id;
         std::string errMessage;
         int errCode;
@@ -75,6 +75,9 @@ namespace fc
         std::vector<std::string> words;
 
         char* dumpJson() const;
+        bool getFullCode(std::string&) const;
+        bool getBarCode(std::string&) const;
+        bool getPrice(int&) const;
     };
 
     class OcrHandler
@@ -126,7 +129,8 @@ namespace fc
         {282810, "image recognize error"},
     };
 
-    int ProcessingOCR(const char*, std::vector<std::string>&, uint64_t&, std::string&, int&, std::string&);
+    int ProcessingOCR(
+        const char*, std::vector<std::string>&, uint64_t&, std::string&, int&, std::string&);
 
     int ProcessingOCR(const char*, OcrResult&);
     int ImageProcessingStartup(const string&, const string&, const string&);

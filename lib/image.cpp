@@ -137,7 +137,7 @@ namespace fc
         imageMat = cv::imread(filename, cv::IMREAD_COLOR);
     }
 
-    int Image::getItemCode(std::string& fcode, std::string& bcode)
+    int Image::getItemCode(std::string& fcode, std::string& bcode, int& price)
     {
         cv::Rect rect;
         int ret = opencvFindBarCodeROI(imageMat, rect);
@@ -150,42 +150,40 @@ namespace fc
 
         ret = 0;
         std::string teFCode, teBCode;
-        std::vector<std::string> out;
-        uint64_t id;
-        string err;
-        int errCode;
-        std::string json;
-        teFCode = teBCode = "";
+        OcrResult result;
         zstatus = zbarCodeIdentify(imageMat, rect, bcode);
-        tstatus = ProcessingOCR(this->filename, out, id, err, errCode, json);
+        tstatus = ProcessingOCR(this->filename, result);
         if (zstatus == 1
             && only::checkBarCodeValidate(bcode)) {  // zbar success. Bar Code MUST be TRUE.
             ret = ret | ZBAR_OK;                     // 1
         }
-        if (tstatus == 1) {            //teseract success
-            ret = ret | TESSERACT_OK;  // 2
-            fcode = teFCode;
+        std::cerr << "tstatus : " << tstatus;
+        if (tstatus >= 1) {
+            ret = ret | OCR_OK;  // 2
+            if (result.getFullCode(teFCode)) {
+                ret = ret | OCR_GET_FULL_CODE;
+                fcode = teFCode;
+            }
+            if (result.getBarCode(teBCode)) {
+                ret = ret | OCR_GET_BAR_CODE;
+            }
             if (bcode.length() == 0) {
+                //zbar failed to get bar code, set it to OCR-gotten BarCode
                 bcode = teBCode;
             }
             if (only::checkFullBarCode(teFCode, teBCode)) {
-                ret = ret | TESSERACT_FULL_BARCODE_VALID;  // 4
-            } else {
-                std::string result;
-                if (only::restoreFullCode(teFCode, teBCode, result)) {
-                    fcode = result;
-                    ret = ret | TESSERACT_FULL_BARCODE_VALID;
-                }
+                ret = ret | FULL_BAR_CODE_VALID;  // 4
+            }
+            if (result.getPrice(price)) {
+                ret = ret | OCR_GET_PRICE_OK;
             }
         }
         if (zstatus == 1 && tstatus == 1) {
             if (bcode == teBCode) {
-                ret = ret | TESSERACT_ZBAR_BARCODE_EQ;  // 8
-            }
-        }
-        if ((ret & TESSERACT_ZBAR_BARCODE_EQ) == TESSERACT_ZBAR_BARCODE_EQ) {
-            if (only::checkFullBarCode(teFCode, bcode)) {
-                ret = ret | ALL_CODE_VALIDATE_OK;  // 16
+                ret = ret | ZBAR_OCR_BAR_CODE_EQUAL;
+                if (only::checkFullBarCode(teFCode, bcode)) {
+                    ret = ret | ALL_CODE_VALIDATE_OK;  // 16
+                }
             }
         }
         return ret;
@@ -219,6 +217,42 @@ namespace fc
         }
     }
 
+    bool OcrResult::__find(std::string& _code, std::function<bool(const std::string&)> fn) const
+    {
+        auto c = std::find_if(words.cbegin(), words.cend(), fn);
+        bool ret;
+        if (c != words.end()) {
+            _code = *c;
+            ret = true;
+        } else {
+            _code = "";
+            ret = false;
+        }
+        return ret;
+    }
+
+    bool OcrResult::getFullCode(std::string& _code) const
+    {
+        return __find(_code, only::checkFullCode);
+    }
+
+    bool OcrResult::getBarCode(std::string& _code) const
+    {
+        return __find(_code, only::checkBarCodeValidate);
+    }
+
+    bool OcrResult::getPrice(int& p) const
+    {
+        constexpr auto cp = only::checkPrice;
+        auto c = std::find_if(words.cbegin(), words.cend(), [&](auto& p) { return cp(p) != -1; });
+        if (c != words.cend()) {
+            p = cp(*c);
+            return true;
+        } else {
+            return false;
+        }
+    }
+
     int ImageProcessingDestroy()
     {
         return 0;
@@ -229,6 +263,7 @@ namespace fc
         if (client == nullptr) {
             client = new aip::Ocr(_aid, _akey, _skey);
         }
+        return 0;
     }
 
     int ProcessingOCR(const char* path, OcrResult& result)
@@ -279,8 +314,9 @@ namespace fc
                 vstring.emplace_back(results[i]["words"].asString());
             }
         }
-        Json::FastWriter fwriter;
-        json = fwriter.write(result);
+        Json::StreamWriterBuilder fwriter;
+        fwriter.settings_["indentation"] = "";
+        json = Json::writeString(fwriter, result);
         std::cout << json;
         return vstring.size();
     }
