@@ -3,6 +3,7 @@
 #ifndef FCHECKER_H
 #define FCHECKER_H
 
+#include "taobao.h"
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -10,16 +11,13 @@
 #include <dirent.h>
 #include <unistd.h>
 
+#include <json/json.h>
+#include <cstring>
 #include <memory>
 #include <queue>
 #include <string>
-#include <cstring> 
-#include <json/json.h>
-#include "taobao.h"
 
-#include "boost/pool/pool.hpp"
 
-using boost::pool;
 using std::queue;
 using std::string;
 
@@ -27,12 +25,13 @@ using std::string;
 void* fcheckerHandler(void*);
 
 using std::string;
+using tb::utils::releaseMemory;
+using tb::utils::requestMemory;
 
 class SystemConfig
 {
 public:
     string path;
-    pool<> _pool;
     string rawPath;
     string productPath;
     bool chRoot;
@@ -41,7 +40,7 @@ public:
     bool forkToBackground;
 
 
-    SystemConfig() : _pool(sizeof(char), 1 << 12)  // allocate 4096KB from system
+    SystemConfig()
     {
 #ifdef USE_INOTIFY
         inotifyFD = 0;
@@ -63,18 +62,6 @@ public:
 
 // global ====
 extern SystemConfig globalConfig;
-
-inline char* requestMemory(unsigned long _size)
-{
-    return reinterpret_cast<char*>(globalConfig._pool.ordered_malloc(_size));
-}
-
-inline void releaseMemory(const void* ptr)
-{
-    if (ptr == nullptr)
-        return;
-    globalConfig._pool.ordered_free(const_cast<void*>(ptr));
-}
 
 inline char* stringDUP(const char* s)
 {

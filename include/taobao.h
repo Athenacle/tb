@@ -202,9 +202,16 @@ namespace tb
             }
         };
 #endif
-
-
     }  // namespace thread_ns
+
+    namespace utils {
+        // lib/utils.cpp
+        void InitCoreUtilties();
+        void DestroyCoreUtilites();
+
+        char* requestMemory(unsigned long);
+        void releaseMemory(const void*);
+    };
 }  // namespace tb
 
 
