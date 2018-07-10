@@ -133,6 +133,7 @@ namespace
 namespace fc
 {
     string Image::waterMarker = "";
+    string Image::position = "";
     double Image::rotation = 0.0;
     double Image::transparent = 1.0;
     int Image::repeat = 1;

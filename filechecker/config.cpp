@@ -1,16 +1,16 @@
 
 #include "fchecker.h"
-#include "logger.h"
 #include "image.h"
+#include "logger.h"
 
 #include <fcntl.h>
+#include <json/json.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <string>
 #include <cstring>
-#include <json/json.h>
+#include <string>
 
 #ifdef USE_INOTIFY
 #include <sys/inotify.h>
@@ -66,33 +66,6 @@ namespace
         }
         return ret;
     }
-    int fileSize = 0;
-
-    char *OpenFile(const char *path)
-    {
-        int fd = open(path, O_RDONLY);
-        if (fd < 0) {
-            char *buffer = requestMemory(strlen(path) + 128);
-            sprintf(buffer, "Cannot open file %s for reading: %s. \n", path, strerror(errno));
-            write(STDERR_FILENO, buffer, strlen(buffer));
-            releaseMemory(buffer);
-            exit(-1);
-        } else {
-            struct stat fs;
-            fstat(fd, &fs);
-            auto ret = reinterpret_cast<char *>(
-                mmap(nullptr, fileSize = fs.st_size + 1, PROT_READ, MAP_SHARED, fd, 0));
-
-            close(fd);
-            return ret;
-        }
-    }
-
-    void CloseFile(char *buffer)
-    {
-        munmap(buffer, fileSize);
-    }
-
 }  // namespace
 
 void StartLog(const Json::Value &doc, tb::thread_ns::barrier *b)
@@ -131,17 +104,16 @@ void StartLog(const Json::Value &doc, tb::thread_ns::barrier *b)
 
 #define getValue(name, parent, type, value) \
     do {                                    \
-        if (parent.isMember(#name)) {      \
+        if (parent.isMember(#name)) {       \
             auto &obj = parent[#name];      \
             if (obj.is##type()) {           \
-                value = obj.as##type();    \
+                value = obj.as##type();     \
             }                               \
         }                                   \
     } while (false)
 
 void StartSystem(const Json::Value &jsonRoot)
 {
-
     string dir = "";
     string rawDir = "";
     string productDir = "";
@@ -196,21 +168,28 @@ void StartSystem(const Json::Value &jsonRoot)
 
 void fcInit(const char *json)
 {
-    using namespace Json; //jsoncpp
+    using namespace Json;  //jsoncpp
 
     atexit(fcExit);
-    auto buffer = OpenFile(json);
+    char *error;
+    size_t size;
+    char *buffer = reinterpret_cast<char *>(tb::utils::openFile(json, size, &error));
+    if (buffer == nullptr) {
+        log_FATAL(error);
+        releaseMemory(error);
+        exit(-1);
+    }
     Reader *parser = new Reader(Features::strictMode());
     Value root;
-    if (!parser->parse(buffer, root)){
+    if (!parser->parse(buffer, root)) {
         //Failed to parse json file.
         exit(-3);
     }
     tb::barrier b(2);
     StartLog(root, &b);
     StartSystem(root);
-    CloseFile(buffer);
-    //   fc::ImageProcessingStartup();
+    fc::ImageProcessingStartup(root);
+    tb::utils::destroyFile(buffer, size, &error);
 }
 
 void fcExit()
@@ -226,14 +205,14 @@ void fcExit()
 #include <iostream>
 using namespace std;
 
-void version(const char* name)
+void version(const char *name)
 {
     cout << name << " Version: " << PROJECT_VERSION << endl << "----------" << endl;
     cout << "Build with "
 #ifdef USE_POSIX_THREAD
          << "POSIX Thread Model." << endl;
 #else
-    << "C++ 11 Thread Model" << endl;
+         << "C++ 11 Thread Model" << endl;
 #endif
     cout << "Build with Boost Version " << TB_BOOST_VERSION << endl;
     cout << "Build with ZLIB Version " << TB_ZLIB_VERSION << endl;
