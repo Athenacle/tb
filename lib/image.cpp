@@ -132,9 +132,56 @@ namespace
 
 namespace fc
 {
+    string Image::waterMarker = "";
+    double Image::rotation = 0.0;
+    double Image::transparent = 1.0;
+    int Image::repeat = 1;
+    unsigned int Image::anchor = ANCHOR_TOP | ANCHOR_LEFT;
+    int Image::xOffset = 0;
+    int Image::yOffset = 0;
+
+
     Image::Image(const char* _fname) : filename(_fname)
     {
         imageMat = cv::imread(filename, cv::IMREAD_COLOR);
+    }
+
+    void Image::parseArgs(char* buffer, size_t size)
+    {
+        auto t = Image::transparent;
+        auto r = Image::rotation;
+        auto re = Image::repeat;
+
+        if (r < 0) {
+            double rr = 360 - std::fmod(Image::rotation, 360);
+            sprintf(buffer, "Image ROTATION Get negative value %lf, assume as %lf.", r, rr);
+            Image::rotation = rr;
+            log_WARNING(buffer);
+        }
+        if (r > 360) {
+            double rr = std::fmod(Image::rotation, 360);
+            sprintf(buffer, "Image ROTATION Get value %lf greater than 360, assume as %lf.", r, rr);
+            Image::rotation = rr;
+            log_WARNING(buffer);
+        }
+        if (t < 0) {
+            double tt = std::fmod(std::abs(t), 1.0);
+            sprintf(buffer, "Image TRANSPARENT Get negative value %lf , assume as %lf.", t, tt);
+            Image::transparent = tt;
+            log_WARNING(buffer);
+        }
+        if (t - 1.0 > 1e-5) {
+            double tt = std::fmod(t, 1.0);
+            sprintf(
+                buffer, "Image TRANSPARENT Get value %lf greater than 1.0 , assume as %lf.", t, tt);
+            Image::transparent = tt;
+            log_WARNING(buffer);
+        }
+        if (re < 0) {
+            sprintf(buffer, "Image repeat Get negative value %d, assume as 1.", re);
+            Image::repeat = 1;
+            log_WARNING(buffer);
+        }
     }
 
     int Image::getItemCode(std::string& fcode, std::string& bcode, int& price)
@@ -255,6 +302,68 @@ namespace fc
 
     int ImageProcessingDestroy()
     {
+        return 0;
+    }
+
+#define WATER_GETVALUE(destValue, parent, key, Type)               \
+    do {                                                           \
+        if (parent.isMember(#key) && waterMark[#key].is##Type()) { \
+            destValue = parent[#key].as##Type();                   \
+        }                                                          \
+    } while (0);
+
+
+    int ImageProcessingStartup(const Json::Value& v)
+    {
+        using namespace img_error;
+        const int bufferSize = 1024;
+        char* buffer = tb::utils::requestMemory(bufferSize);
+
+        if (!v.isMember("image")) {
+            log_ERROR(err[ERR_IO_NOT_EXIST]);
+            return ERR_IO_NOT_EXIST;
+        }
+        auto image = v["image"];
+        if (!v.isObject()) {
+            log_ERROR(err[ERR_IO_NOT_EXIST]);
+            return ERR_IO_NOT_EXIST;
+        }
+
+        if (image.isMember("waterMark")) {
+            auto waterMark = image["waterMark"];
+            WATER_GETVALUE(Image::waterMarker, waterMark, waterMarkImage, String);
+            WATER_GETVALUE(Image::rotation, waterMark, rotation, Double);
+            WATER_GETVALUE(Image::transparent, waterMark, transparent, Double);
+
+            WATER_GETVALUE(Image::repeat, waterMark, repeat, Double);
+            if (waterMark.isMember("position") && waterMark["position"].isObject()) {
+                auto pos = waterMark["position"];
+                WATER_GETVALUE(Image::position, pos, position, String);
+                WATER_GETVALUE(Image::xOffset, pos, x, Double);
+                WATER_GETVALUE(Image::yOffset, pos, y, Double);
+            }
+        }
+        if (image.isMember("ocr")) {
+            auto ocr = image["ocr"];
+            if (ocr.isObject() && ocr.isMember("BaiduOCR")) {
+                auto baiduOCR = ocr["ocr"];
+                bool enable = false;
+                string aid, akey, skey;
+                aid = akey = skey;
+                if (baiduOCR.isObject()) {
+                    if (baiduOCR.isMember("enable")) {
+                        enable = baiduOCR["enable"].asBool();
+                    }
+                    aid = baiduOCR["app-id"].asString();
+                    akey = baiduOCR["app-key"].asString();
+                    skey = baiduOCR["secret-key"].asString();
+                    if (enable && aid != "" && akey != "" && skey != "") {
+                        ImageProcessingStartup(aid, akey, skey);
+                    }
+                }
+            }
+        }
+        Image::parseArgs(buffer, bufferSize);
         return 0;
     }
 

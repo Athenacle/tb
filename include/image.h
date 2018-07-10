@@ -2,6 +2,7 @@
 #ifndef IMAGE_H
 #define IMAGE_H
 
+#include <json/json.h>
 #include <cstdint>
 #include <map>
 #include <opencv2/core.hpp>
@@ -9,17 +10,16 @@
 #include <opencv2/imgproc.hpp>
 #include <queue>
 #include <string>
-#include "taobao.h"
 
-#ifdef ENABLE_LOGGER
+#include "taobao.h"
 #include "logger.h"
-#endif
 
 void* OCRThread(void*);
 
 namespace fc
 {
     using cv::Mat;
+    using std::string;
 
     enum {
         ZBAR_OK = 1,
@@ -34,23 +34,43 @@ namespace fc
 
     namespace img_error
     {
-        using scode = const unsigned int;
+        using scode = const int;
 
         scode IP_OK = 0;
+        scode ERR_IO_NOT_EXIST = 1;
 
         const char* const err[48] = {
-            "Image Processing Engine Start Successfully."  // 0
+            "Image Processing Engine Start Successfully.",  // 0
+            "Image Object does not exist in json file or doesnot appear to be an Object."
+            "Please Read reference of configuration file.",  //1
         };
     }  // namespace img_error
 
     const size_t FULL_CODE_BUFFER_LENGTH = 16;
     const size_t BAR_CODE_BUFFER_LENGTH = 16;
 
+    enum { ANCHOR_TOP = 1, ANCHOR_BOTTOM = 2, ANCHOR_LEFT = 4, ANCHOR_RIGHT = 8 };
+
+    int ImageProcessingStartup(const Json::Value&);
+    int ImageProcessingStartup(const string&, const string&, const string&);
+
     class Image
     {
+        friend int ImageProcessingStartup(const Json::Value&);
+
         const char* filename;
         Mat imageMat;
 
+        static string waterMarker;
+        static string position;
+        static double rotation;
+        static double transparent;
+        static int repeat;
+        static unsigned int anchor;
+        static int xOffset;
+        static int yOffset;
+
+        static void parseArgs(char*, size_t);
     public:
         Image(const char*);
         Image(const char*, size_t);
@@ -58,25 +78,25 @@ namespace fc
         int OpenImageFile(const char*);
         int WriteToFile(const char* = nullptr);
 
-        int getItemCode(std::string&, std::string&, int& price);
+        int getItemCode(string&, string&, int& price);
+        int AddWaterPrint();
     };
 
-    using std::string;
 
     struct OcrResult {
     private:
-        bool __find(std::string&, std::function<bool(const std::string&)>) const;
+        bool __find(string&, std::function<bool(const string&)>) const;
 
     public:
         uint64_t id;
-        std::string errMessage;
+        string errMessage;
         int errCode;
-        std::string json;
-        std::vector<std::string> words;
+        string json;
+        std::vector<string> words;
 
         char* dumpJson() const;
-        bool getFullCode(std::string&) const;
-        bool getBarCode(std::string&) const;
+        bool getFullCode(string&) const;
+        bool getBarCode(string&) const;
         bool getPrice(int&) const;
     };
 
@@ -87,9 +107,9 @@ namespace fc
 
         std::queue<const char*> pathQueue;
 
-        const std::string app_id;
-        const std::string api_key;
-        const std::string secret_key;
+        const string app_id;
+        const string api_key;
+        const string secret_key;
 
     public:
     };
@@ -129,11 +149,10 @@ namespace fc
         {282810, "image recognize error"},
     };
 
-    int ProcessingOCR(
-        const char*, std::vector<std::string>&, uint64_t&, std::string&, int&, std::string&);
+    int ProcessingOCR(const char*, std::vector<string>&, uint64_t&, string&, int&, string&);
 
     int ProcessingOCR(const char*, OcrResult&);
-    int ImageProcessingStartup(const string&, const string&, const string&);
+
     int ImageProcessingDestroy();
 };  // namespace fc
 
