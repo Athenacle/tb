@@ -26,7 +26,8 @@ int doit(const char *fn)
 
 int main(int argc, char *argv[])
 {
-    //fc::ImageProcessingStartup();
+    fc::ImageProcessingStartup(
+        "11514257", "iidLki3phyEmG78dESIboa8Q", "vXjwhha9iRUNAphSbTNbY1HppZWyqGaa");
     if (argc == 0) {
         cerr << "usage: ./imgTest <file list>" << endl;
         return -1;

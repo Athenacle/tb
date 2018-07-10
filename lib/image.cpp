@@ -2,8 +2,10 @@
 #include "image.h"
 #include "id.h"
 #include "ocr.h"
+#include "taobao.h"
 
-
+#include <json/json.h>
+#include <unistd.h>
 #include <zbar.h>
 #include <iostream>
 #include <vector>
@@ -23,6 +25,8 @@
 
 namespace
 {
+    aip::Ocr* client;
+
     int opencvFindBarCodeROI(const cv::Mat mat,
                              cv::Rect& roi,
                              unsigned dilateTimes = 4,
@@ -128,7 +132,6 @@ namespace
 
 namespace fc
 {
-
     Image::Image(const char* _fname) : filename(_fname)
     {
         imageMat = cv::imread(filename, cv::IMREAD_COLOR);
@@ -147,9 +150,14 @@ namespace fc
 
         ret = 0;
         std::string teFCode, teBCode;
+        std::vector<std::string> out;
+        uint64_t id;
+        string err;
+        int errCode;
+        std::string json;
         teFCode = teBCode = "";
         zstatus = zbarCodeIdentify(imageMat, rect, bcode);
-        tstatus = 0 ; //TODO
+        tstatus = ProcessingOCR(this->filename, out, id, err, errCode, json);
         if (zstatus == 1
             && only::checkBarCodeValidate(bcode)) {  // zbar success. Bar Code MUST be TRUE.
             ret = ret | ZBAR_OK;                     // 1
@@ -190,14 +198,90 @@ namespace fc
         return imwrite(filename, imageMat);
     }
 
+    char* OcrResult::dumpJson() const
+    {
+        unsigned char* gzCompressed;
+        unsigned char* _json =
+            const_cast<unsigned char*>(reinterpret_cast<const unsigned char*>(this->json.c_str()));
+        int ret = tb::utils::gzCompress(const_cast<unsigned char*>(_json),
+                                        strlen(reinterpret_cast<char*>(_json)),
+                                        &gzCompressed);
+        if (ret == -1) {
+            return nullptr;
+        }
+        char* base64;
+        ret = tb::utils::base64Encode(gzCompressed, ret, &base64, false);
+        tb::utils::releaseMemory(gzCompressed);
+        if (ret > 0) {
+            return base64;
+        } else {
+            return nullptr;
+        }
+    }
+
     int ImageProcessingDestroy()
     {
         return 0;
     }
 
-    int ImageProcessingStartup()
+    int ImageProcessingStartup(const string& _aid, const string& _akey, const string& _skey)
     {
-        return 0;
+        if (client == nullptr) {
+            client = new aip::Ocr(_aid, _akey, _skey);
+        }
     }
 
+    int ProcessingOCR(const char* path, OcrResult& result)
+    {
+        return ProcessingOCR(
+            path, result.words, result.id, result.errMessage, result.errCode, result.json);
+    }
+
+    int ProcessingOCR(const char* path,
+                      std::vector<std::string>& vstring,
+                      uint64_t& _id,
+                      std::string& _errmessage,
+                      int& _errcode,
+                      std::string& json)
+    {
+        Json::Value result;
+        std::string image;
+        if (access(path, R_OK) != 0) {
+            return -1;
+        }
+        aip::get_file_content(path, &image);
+        std::map<std::string, std::string> options;
+        options["language_type"] = "CHN_ENG";
+        options["detect_direction"] = "true";
+        options["detect_language"] = "true";
+        options["probability"] = "true";
+        result = client->general_basic(image, options);
+        vstring.clear();
+        if (result.isMember("error_code")) {
+            _errcode = result["error_code"].asInt();
+            if (result.isMember("error_msg")) {
+                _errmessage = result["error_msg"].asString();
+            } else {
+                _errmessage = ocrErrorTable.at(_errcode);
+            }
+            return 0;
+        }
+
+        if (result.isMember("log_id")) {
+            _id = result["log_id"].asUInt64();
+        }
+        if (result.isMember("words_result_num")) {
+            vstring.reserve(result["words_result_num"].asUInt());
+        }
+        if (result.isMember("words_result") && result["words_result"].isArray()) {
+            auto results = result["words_result"];
+            for (unsigned int i = 0; i < results.size(); i++) {
+                vstring.emplace_back(results[i]["words"].asString());
+            }
+        }
+        Json::FastWriter fwriter;
+        json = fwriter.write(result);
+        std::cout << json;
+        return vstring.size();
+    }
 }  // namespace fc

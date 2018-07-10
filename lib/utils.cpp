@@ -52,7 +52,7 @@ namespace tb
             if (ret == Z_OK) {
                 return outBound;
             } else {
-                return ret;
+                return -1;
             }
         }
 
