@@ -2,6 +2,7 @@
 
 
 #ifndef LOG_H
+#define LOG_H
 #include "taobao.h"
 
 #include <sys/types.h>
