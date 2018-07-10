@@ -10,6 +10,12 @@
 #include "config.h"
 #endif
 
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+
 #ifdef UNIX_HAVE_SYS_PRCTL
 #include <sys/prctl.h>
 #endif
@@ -216,6 +222,10 @@ namespace tb
         int gzCompress(unsigned char*, size_t, unsigned char**);
 
         int base64Encode(unsigned char*, size_t, char**, bool = false);
+
+        void* openFile(const char*, size_t&, char**, unsigned int = O_RDONLY);
+
+        int destroyFile(void*, size_t , char**);
 
     };  // namespace utils
 }  // namespace tb

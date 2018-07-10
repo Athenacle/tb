@@ -28,4 +28,12 @@
 
 #cmakedefine TB_OPENCV_VERSION "@OPENCV_VERSION@"
 
+#cmakedefine UNIX_HAVE_SYS_MMAN @UNIX_HAVE_SYS_MMAN@
+
+#cmakedefine UNIX_HAVE_MMAP @UNIX_HAVE_MMAP@
+
+#if defined UNIX_HAVE_SYS_MMAN && defined UNIX_HAVE_MMAP
+#define UNIX_USE_MMAP
+#endif
+
 #endif
