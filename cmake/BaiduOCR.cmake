@@ -1,0 +1,14 @@
+
+INCLUDE(ExternalProject)
+
+ExternalProject_Add(
+  BaiduOCR
+  URL http://ai.baidu.com/download?sdkId=56
+  PREFIX ${CMAKE_CURRENT_BINARY_DIR}/BaiduOCR
+  CONFIGURE_COMMAND ""
+  BUILD_COMMAND ""
+  INSTALL_COMMAND "")
+
+SET(BaiduOCR_INCLUDE ${CMAKE_CURRENT_BINARY_DIR}/BaiduOCR/src/BaiduOCR/)
+
+INCLUDE_DIRECTORIES(${BaiduOCR_INCLUDE})

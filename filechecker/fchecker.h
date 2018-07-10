@@ -13,8 +13,8 @@
 #include <memory>
 #include <queue>
 #include <string>
-
-#include "rapidjson/document.h"
+#include <cstring> 
+#include <json/json.h>
 #include "taobao.h"
 
 #include "boost/pool/pool.hpp"
@@ -23,17 +23,18 @@ using boost::pool;
 using std::queue;
 using std::string;
 
-using namespace rapidjson;
 
 void* fcheckerHandler(void*);
+
+using std::string;
 
 class SystemConfig
 {
 public:
-    const char* path;
+    string path;
     pool<> _pool;
-    const char* rawPath;
-    const char* productPath;
+    string rawPath;
+    string productPath;
     bool chRoot;
     bool useInotify;
     int uid, gid;
@@ -162,7 +163,7 @@ void fcExit();
 void fcInit(const char*);
 void parseArguments(int, char* []);
 void version(const char*);
-void StartLog(const Document&, tb::thread_ns::barrier*);
-void StartSystem(const Document&);
+void StartLog(const Json::Value&, tb::thread_ns::barrier*);
+void StartSystem(const Json::Value&);
 
 #endif

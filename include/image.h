@@ -2,23 +2,24 @@
 #ifndef IMAGE_H
 #define IMAGE_H
 
+#include <map>
 #include <string>
-#include <leptonica/allheaders.h>
-#include <tesseract/baseapi.h>
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
+
+//#include "ocr.h"
 
 #include "taobao.h"
 #ifdef ENABLE_LOGGER
 #include "logger.h"
 #endif
 
+void* OCRThread(void*);
+
 namespace fc
 {
     using cv::Mat;
-
-    extern tesseract::TessBaseAPI* tessEngine;
 
     enum {
           ZBAR_OK = 1,
@@ -64,6 +65,23 @@ namespace fc
         int getItemCode(std::string&, std::string&);
     };
 
+    // using std::string;
+    // using BaiduOCR =  aip::Ocr;
+    // class OCR
+    // {
+
+    //     const std::string app_id;
+    //     const std::string api_key;
+    //     const std::string secret_key;
+
+    //     BaiduOCR client;
+    // public:
+    //     OCR(string _id, string _key, string _skey)
+    //         :app_id(_id), api_key(_key), secret_key(_skey), client(_id, _key, _skey)
+    //     {
+    //     }
+    // };
+    // int ImageProcessingStartup(std::map<std::string, std::string>&);
     int ImageProcessingStartup();
     int ImageProcessingDestroy();
 };  // namespace fc

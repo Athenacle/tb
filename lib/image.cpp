@@ -1,6 +1,8 @@
 
 #include "image.h"
 #include "id.h"
+#include "ocr.h"
+
 
 #include <zbar.h>
 #include <iostream>
@@ -100,48 +102,6 @@ namespace
         }
     }
 
-
-    int tesseractCodeIdentify(cv::Mat& raw,
-                              const cv::Rect& roi,
-                              std::string& fcode,
-                              std::string& bcode)
-    {
-        using namespace cv;
-        using namespace tesseract;
-        using namespace only;
-
-        if (roi.x < 100 || roi.y < 50) {
-            return 0;
-        }
-
-
-        Rect large(roi.x - 80, roi.y - 40, roi.width + 110, roi.height + 80);
-        rectangle(raw, large, Scalar(255, 0), 2);
-        Rect small;
-        opencvFindBarCodeROI(raw, small, 3, Size(6, 5));
-        rectangle(raw, small, Scalar(255, 255, 255), -1);
-        Mat ocrRegion;
-        resize(raw(large), ocrRegion, Size(0,0),2,2);
-        cvtColor(ocrRegion, ocrRegion, COLOR_RGB2GRAY);
-        SHOW(ocrRegion)
-        Mat resultMat;
-        threshold(ocrRegion, resultMat, 180, 255, CV_THRESH_BINARY);
-        SHOW(resultMat);
-
-        TessBaseAPI* tess = fc::tessEngine;
-        tess->Clear();
-        tess->SetImage(reinterpret_cast<unsigned char*>(resultMat.data),
-                       resultMat.size().width,
-                       resultMat.size().height,
-                       resultMat.channels(),
-                       resultMat.step1());
-        tess->GetUTF8Text();
-        const char* out = tess->GetUTF8Text();
-        int ret = only::checkOcrOutput(out, fcode, bcode) ? 1 : 0;
-        delete[] out;
-        return ret;
-    }
-
 }  // namespace
 
 #define DRAW                                                                                     \
@@ -168,7 +128,6 @@ namespace
 
 namespace fc
 {
-    tesseract::TessBaseAPI* tessEngine = nullptr;
 
     Image::Image(const char* _fname) : filename(_fname)
     {
@@ -190,7 +149,7 @@ namespace fc
         std::string teFCode, teBCode;
         teFCode = teBCode = "";
         zstatus = zbarCodeIdentify(imageMat, rect, bcode);
-        tstatus = tesseractCodeIdentify(imageMat, rect, teFCode, teBCode);
+        tstatus = 0 ; //TODO
         if (zstatus == 1
             && only::checkBarCodeValidate(bcode)) {  // zbar success. Bar Code MUST be TRUE.
             ret = ret | ZBAR_OK;                     // 1
@@ -233,29 +192,12 @@ namespace fc
 
     int ImageProcessingDestroy()
     {
-        if (tessEngine != nullptr) {
-            tessEngine->Clear();
-            tessEngine->End();
-            delete tessEngine;
-            tessEngine = nullptr;
-        }
         return 0;
     }
 
     int ImageProcessingStartup()
     {
-        using namespace img_error;
-        if (tessEngine == nullptr) {
-            tessEngine = new tesseract::TessBaseAPI();
-
-            if (tessEngine->Init(nullptr, "eng")) {
-#ifdef ENABLE_LOGGER
-                log_ERROR(err[IP_OCR_ERROR]);
-#endif
-                return IP_OCR_ERROR;
-            }
-        }
-        return IP_OCR_ERROR;
+        return 0;
     }
 
 }  // namespace fc

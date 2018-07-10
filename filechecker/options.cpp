@@ -3,7 +3,6 @@
 #include <iostream>
 
 #include "fchecker.h"
-#include "rapidjson/rapidjson.h"
 
 using std::cout;
 using std::endl;
@@ -22,7 +21,6 @@ void version(const char* name)
          << "C++ 11 Thread Model" << endl;
 #endif
     cout << "Build with Boost Version " << BOOST_VERSION << endl;
-    cout << "Build with RapidJSON Version " << RAPIDJSON_VERSION_STRING << endl;
     cout << "Build with ZLIB Version " << ZLIB_VERSION << endl;
     exit(0);
 }

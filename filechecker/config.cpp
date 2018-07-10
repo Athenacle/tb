@@ -8,6 +8,9 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <string>
+#include <cstring>
+#include <json/json.h>
 
 #ifdef USE_INOTIFY
 #include <sys/inotify.h>
@@ -92,14 +95,14 @@ namespace
 
 }  // namespace
 
-void StartLog(const Document &doc, tb::thread_ns::barrier *b)
+void StartLog(const Json::Value &doc, tb::thread_ns::barrier *b)
 {
     auto &log = Logger::getLogger(b);
     b->wait();
-    if (doc.HasMember("logger")) {
+    if (doc.isMember("logger")) {
         auto &array = doc["logger"];
-        if (array.IsArray()) {
-            for (SizeType i = 0; i < array.Size(); i++) {
+        if (array.isArray()) {
+            for (unsigned int i = 0; i < array.size(); i++) {
                 auto &obj = array[i];
                 auto &fnObj = obj["filePath"];
                 auto &severityObj = obj["severity"];
@@ -107,14 +110,14 @@ void StartLog(const Document &doc, tb::thread_ns::barrier *b)
                 const char *fn = nullptr;
                 const char *severity = nullptr;
                 bool append = false;
-                if (!fnObj.IsNull()) {
-                    fn = fnObj.GetString();
+                if (!fnObj.isNull()) {
+                    fn = fnObj.asCString();
                 }
-                if (!severityObj.IsNull()) {
-                    severity = severityObj.GetString();
+                if (!severityObj.isNull()) {
+                    severity = severityObj.asCString();
                 }
-                if (!appendObj.IsNull()) {
-                    append = appendObj.GetBool();
+                if (!appendObj.isNull()) {
+                    append = appendObj.asBool();
                 }
                 if (fn == nullptr) {
                     log.AddConsoleBackend(getSeverity(severity));
@@ -128,23 +131,24 @@ void StartLog(const Document &doc, tb::thread_ns::barrier *b)
 
 #define getValue(name, parent, type, value) \
     do {                                    \
-        if (parent.HasMember(#name)) {      \
+        if (parent.isMember(#name)) {      \
             auto &obj = parent[#name];      \
-            if (obj.Is##type()) {           \
-                value = obj.Get##type();    \
+            if (obj.is##type()) {           \
+                value = obj.as##type();    \
             }                               \
         }                                   \
     } while (false)
 
-void StartSystem(const Document &doc)
+void StartSystem(const Json::Value &jsonRoot)
 {
-    const char *dir = nullptr;
-    const char *rawDir = nullptr;
-    const char *productDir = nullptr;
+
+    string dir = "";
+    string rawDir = "";
+    string productDir = "";
     bool useInotify;
     int uid, gid;
     uid = gid = -1;
-    auto &root = doc["system"];
+    auto &root = jsonRoot["system"];
     getValue(rootDirectory, root, String, dir);
     getValue(useInotify, root, Bool, useInotify);
     getValue(gid, root, Int, gid);
@@ -152,19 +156,19 @@ void StartSystem(const Document &doc)
     getValue(rawDirectory, root, String, rawDir);
     getValue(productDir, root, String, productDir);
 
-    globalConfig.path = stringDUP(dir);
+    globalConfig.path = (dir);
     globalConfig.uid = uid;
     globalConfig.gid = gid;
     globalConfig.useInotify = useInotify;
-    globalConfig.rawPath = stringDUP(rawDir);
-    globalConfig.productPath = stringDUP(productDir);
+    globalConfig.rawPath = (rawDir);
+    globalConfig.productPath = (productDir);
 
-    char *buffer = requestMemory(strlen(dir) + 128);
+    char *buffer = requestMemory((dir.length()) + 128);
 #ifdef USE_INOTIFY
     if (useInotify) {
         globalConfig.inotifyFD = inotify_init();
     }
-    inotify_add_watch(globalConfig.inotifyFD, dir, IN_CREATE | IN_MODIFY | IN_ONLYDIR);
+    inotify_add_watch(globalConfig.inotifyFD, dir.c_str(), IN_CREATE | IN_MODIFY | IN_ONLYDIR);
 #endif
 
     if (uid >= 0) {
@@ -192,22 +196,25 @@ void StartSystem(const Document &doc)
 
 void fcInit(const char *json)
 {
+    using namespace Json; //jsoncpp
+
     atexit(fcExit);
     auto buffer = OpenFile(json);
-    Document doc;
-    doc.Parse(buffer);
+    Reader *parser = new Reader(Features::strictMode());
+    Value root;
+    if (!parser->parse(buffer, root)){
+        //Failed to parse json file.
+        exit(-3);
+    }
     tb::barrier b(2);
-    StartLog(doc, &b);
-    StartSystem(doc);
+    StartLog(root, &b);
+    StartSystem(root);
     CloseFile(buffer);
-    fc::ImageProcessingStartup();
+    //   fc::ImageProcessingStartup();
 }
 
 void fcExit()
 {
     Logger::DestoryLogger();
     fc::ImageProcessingDestroy();
-    releaseMemory(globalConfig.path);
-    releaseMemory(globalConfig.rawPath);
-    releaseMemory(globalConfig.productPath);
 }

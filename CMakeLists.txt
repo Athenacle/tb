@@ -26,6 +26,13 @@ INCLUDE(ConfigCheck)
 
 INCLUDE(FindPkgConfig)
 
+PKG_SEARCH_MODULE(jsoncpp REQUIRED jsoncpp >= 1.6.2)
+IF(${jsoncpp_FOUND})
+  MESSAGE(STATUS "jsoncpp Version:" ${jsoncpp_VERSION})
+  INCLUDE_DIRECTORIES(${jsoncpp_INCLUDE_DIRS})
+ENDIF()
+LIST(APPEND libList ${jsoncpp_LIBRARIES})
+
 #pcre2
 PKG_SEARCH_MODULE(libpcre REQUIRED libpcre2-posix)
 MESSAGE(STATUS "libpcre2 version: " ${libpcre_VERSION})
@@ -38,20 +45,6 @@ MESSAGE(STATUS "zbar version: " ${zbar_VERSION})
 
 LIST(APPEND libList ${zbar_LIBRARIES})
 
-#tesseract
-PKG_SEARCH_MODULE(tesseract REQUIRED tesseract >= 4.0)
-IF (${tesseract_FOUND})
-  MESSAGE(STATUS "Tesseract version: " ${tesseract_VERSION})
-  SET(TESSERACT_VERSION ${tesseract_VERSION})
-  ADD_COMPILE_OPTIONS(${tesseract_CFLAGS})
-ELSE()
-  MESSAGE(FATAL_ERROR "Must have tesseract > 4.0 installed.")
-ENDIF()
-
-LIST(APPEND libList ${tesseract_LIBRARIES})
-
-#rapidJSON
-INCLUDE(RapidJSON)
 
 #boost
 FIND_PACKAGE(Boost 1.60 COMPONENTS thread regex )
@@ -75,6 +68,14 @@ FIND_PACKAGE(ZLIB REQUIRED)
 SET(ZLIB_VERSION ${ZLIB_VERSION_STRING})
 LIST(APPEND libList ${ZLIB_LIBRARIES})
 
+INCLUDE(BaiduOCR)
+
+INCLUDE(FindOpenSSL)
+LIST(APPEND libList ${OPENSSL_LIBRARIES})
+
+INCLUDE(FindCURL)
+LIST(APPEND libList ${CURL_LIBRARIES})
+
 ##dependencies end
 
 #### configure file.
@@ -91,7 +92,7 @@ ADD_LIBRARY(tb STATIC ${TB_SOURCE_LIST} )
 
 ADD_EXECUTABLE(fchecker ${FC_LIST})
 
-ADD_DEPENDENCIES(tb RapidJSON)
+ADD_DEPENDENCIES(tb BaiduOCR)
 
 ADD_DEPENDENCIES(fchecker tb)
 

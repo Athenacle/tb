@@ -1,8 +1,6 @@
 
 #include "fchecker.h"
 #include "logger.h"
-#include "settings.h"
-
 
 #ifdef UNIX_HAVE_SYS_PRCTL
 #include <sys/prctl.h>
@@ -15,8 +13,6 @@
 using std::cout;
 using std::endl;
 using std::vector;
-using tb::settings::Settings;
-using tb::settings::Value;
 
 namespace
 {
@@ -185,7 +181,7 @@ namespace fc
 
     void Start(FcHandler& handler)
     {
-        handler.AddDirectory(globalConfig.rawPath);
+        handler.AddDirectory(globalConfig.rawPath.c_str());
     }
 
 }  // namespace fc
