@@ -204,14 +204,20 @@ namespace tb
 #endif
     }  // namespace thread_ns
 
-    namespace utils {
+    namespace utils
+    {
         // lib/utils.cpp
         void InitCoreUtilties();
         void DestroyCoreUtilites();
 
         char* requestMemory(unsigned long);
         void releaseMemory(const void*);
-    };
+
+        int gzCompress(unsigned char*, size_t, unsigned char**);
+
+        int base64Encode(unsigned char*, size_t, char**, bool = false);
+
+    };  // namespace utils
 }  // namespace tb
 
 
