@@ -218,3 +218,24 @@ void fcExit()
     Logger::DestoryLogger();
     fc::ImageProcessingDestroy();
 }
+
+
+#ifndef PROJECT_VERSION
+#define PROJECT_VERSION "unknown"
+#endif
+#include <iostream>
+using namespace std;
+
+void version(const char* name)
+{
+    cout << name << " Version: " << PROJECT_VERSION << endl << "----------" << endl;
+    cout << "Build with "
+#ifdef USE_POSIX_THREAD
+         << "POSIX Thread Model." << endl;
+#else
+    << "C++ 11 Thread Model" << endl;
+#endif
+    cout << "Build with Boost Version " << TB_BOOST_VERSION << endl;
+    cout << "Build with ZLIB Version " << TB_ZLIB_VERSION << endl;
+    exit(0);
+}

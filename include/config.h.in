@@ -16,18 +16,16 @@
 
 #cmakedefine USE_CXX_THREAD @CXX_THREAD@
 
-#cmakedefine BOOST_VERSION "@BOOST_VERSION@"
+#cmakedefine TB_BOOST_VERSION "@TB_BOOST_VERSION@"
 
 #cmakedefine USE_ZLIB @USE_ZLIB@
 
-#cmakedefine ZLIB_VERSION "@ZLIB_VERSION@"
+#cmakedefine TB_ZLIB_VERSION "@TB_ZLIB_VERSION@"
 
 #cmakedefine USE_INOTIFY @USE_INOTIFY@
 
-#cmakedefine ZBAR_VERSION "@ZBAR_VERSION@"
+#cmakedefine TB_ZBAR_VERSION "@TB_ZBAR_VERSION@"
 
-#cmakedefine TESSERACT_VERSION_STRING "@TESSERACT_VERSION@"
-
-#cmakedefine OPENCV_VERSION "@OPENCV_VERSION@"
+#cmakedefine TB_OPENCV_VERSION "@OPENCV_VERSION@"
 
 #endif
