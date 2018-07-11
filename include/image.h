@@ -11,8 +11,8 @@
 #include <queue>
 #include <string>
 
-#include "taobao.h"
 #include "logger.h"
+#include "taobao.h"
 
 void* OCRThread(void*);
 
@@ -20,6 +20,12 @@ namespace fc
 {
     using cv::Mat;
     using std::string;
+
+    class BaseImage;
+    class Image;
+    class WaterMarker;
+    struct OcrResult;
+    class OcrHandler;
 
     enum {
         ZBAR_OK = 1,
@@ -46,31 +52,38 @@ namespace fc
         };
     }  // namespace img_error
 
-    const size_t FULL_CODE_BUFFER_LENGTH = 16;
-    const size_t BAR_CODE_BUFFER_LENGTH = 16;
-
     enum { ANCHOR_TOP = 1, ANCHOR_BOTTOM = 2, ANCHOR_LEFT = 4, ANCHOR_RIGHT = 8 };
 
     int ImageProcessingStartup(const Json::Value&);
     int ImageProcessingStartup(const string&, const string&, const string&);
 
-    class Image
+    class ImageProcessingHandler
+    {
+        using iph = ImageProcessingHandler;
+        std::vector<const WaterMarker*> waters;
+        static iph* instance;
+
+    public:
+        static iph& getImageProcessingHandler();
+        void AddWaterMarker(const WaterMarker*);
+    };
+
+    class BaseImage
+    {
+    protected:
+        const string filename;
+        Mat imageMat;
+
+    public:
+        BaseImage(const char* filename, unsigned int mask = cv::IMREAD_COLOR);
+        bool valid() const;
+        virtual ~BaseImage() {}
+    };
+
+    class Image : public BaseImage
     {
         friend int ImageProcessingStartup(const Json::Value&);
 
-        const char* filename;
-        Mat imageMat;
-
-        static string waterMarker;
-        static string position;
-        static double rotation;
-        static double transparent;
-        static int repeat;
-        static unsigned int anchor;
-        static int xOffset;
-        static int yOffset;
-
-        static void parseArgs(char*, size_t);
     public:
         Image(const char*);
         Image(const char*, size_t);
@@ -79,9 +92,30 @@ namespace fc
         int WriteToFile(const char* = nullptr);
 
         int getItemCode(string&, string&, int& price);
-        int AddWaterPrint();
+        int AddWaterPrint(const WaterMarker&);
     };
 
+    class WaterMarker
+    {
+        string id;
+        string waterMarkerPath;
+        string position;
+        double rotation;
+        double transparent;
+        int repeat;
+        unsigned int anchor;
+        int xOffset;
+        int yOffset;
+
+        BaseImage* waterMarker;
+        BaseImage* waterMarkerMask;
+
+        bool CheckWaterMarker(char*, size_t);
+
+    public:
+        WaterMarker();
+        static WaterMarker* BuildWaterMarker(const Json::Value&, char*, size_t);
+    };
 
     struct OcrResult {
     private:
@@ -149,9 +183,9 @@ namespace fc
         {282810, "image recognize error"},
     };
 
-    int ProcessingOCR(const char*, std::vector<string>&, uint64_t&, string&, int&, string&);
+    int ProcessingOCR(const string&, std::vector<string>&, uint64_t&, string&, int&, string&);
 
-    int ProcessingOCR(const char*, OcrResult&);
+    int ProcessingOCR(const string&, OcrResult&);
 
     int ImageProcessingDestroy();
 };  // namespace fc

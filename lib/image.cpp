@@ -132,58 +132,29 @@ namespace
 
 namespace fc
 {
-    string Image::waterMarker = "";
-    string Image::position = "";
-    double Image::rotation = 0.0;
-    double Image::transparent = 1.0;
-    int Image::repeat = 1;
-    unsigned int Image::anchor = ANCHOR_TOP | ANCHOR_LEFT;
-    int Image::xOffset = 0;
-    int Image::yOffset = 0;
+    ImageProcessingHandler* ImageProcessingHandler::instance = nullptr;
 
-
-    Image::Image(const char* _fname) : filename(_fname)
+    ImageProcessingHandler& ImageProcessingHandler::getImageProcessingHandler()
     {
-        imageMat = cv::imread(filename, cv::IMREAD_COLOR);
+        if (instance == nullptr) {
+            instance = new ImageProcessingHandler();
+        }
+        return *instance;
     }
 
-    void Image::parseArgs(char* buffer, size_t size)
+    void ImageProcessingHandler::AddWaterMarker(const WaterMarker* wm)
     {
-        auto t = Image::transparent;
-        auto r = Image::rotation;
-        auto re = Image::repeat;
-
-        if (r < 0) {
-            double rr = 360 - std::fmod(Image::rotation, 360);
-            sprintf(buffer, "Image ROTATION Get negative value %lf, assume as %lf.", r, rr);
-            Image::rotation = rr;
-            log_WARNING(buffer);
-        }
-        if (r > 360) {
-            double rr = std::fmod(Image::rotation, 360);
-            sprintf(buffer, "Image ROTATION Get value %lf greater than 360, assume as %lf.", r, rr);
-            Image::rotation = rr;
-            log_WARNING(buffer);
-        }
-        if (t < 0) {
-            double tt = std::fmod(std::abs(t), 1.0);
-            sprintf(buffer, "Image TRANSPARENT Get negative value %lf , assume as %lf.", t, tt);
-            Image::transparent = tt;
-            log_WARNING(buffer);
-        }
-        if (t - 1.0 > 1e-5) {
-            double tt = std::fmod(t, 1.0);
-            sprintf(
-                buffer, "Image TRANSPARENT Get value %lf greater than 1.0 , assume as %lf.", t, tt);
-            Image::transparent = tt;
-            log_WARNING(buffer);
-        }
-        if (re < 0) {
-            sprintf(buffer, "Image repeat Get negative value %d, assume as 1.", re);
-            Image::repeat = 1;
-            log_WARNING(buffer);
-        }
+        auto h = getImageProcessingHandler().waters;
+        waters.emplace_back(wm);
     }
+
+    BaseImage::BaseImage(const char* _path, unsigned int mask) : filename(_path)
+    {
+        imageMat = cv::imread(filename, mask);
+    }
+
+    Image::Image(const char* _fname) : BaseImage(_fname) {}
+
 
     int Image::getItemCode(std::string& fcode, std::string& bcode, int& price)
     {
@@ -240,7 +211,7 @@ namespace fc
     int Image::WriteToFile(const char* filename)
     {
         if (filename == nullptr)
-            filename = this->filename;
+            filename = this->filename.c_str();
         return imwrite(filename, imageMat);
     }
 
@@ -301,17 +272,127 @@ namespace fc
         }
     }
 
+    WaterMarker::WaterMarker()
+    {
+        id = "";
+        rotation = 0;
+        transparent = 1;
+        repeat = 1;
+        anchor = ANCHOR_TOP | ANCHOR_LEFT;
+        xOffset = 0;
+        yOffset = 1;
+        waterMarker = waterMarkerMask = nullptr;
+    }
+
+#define WATER_GETVALUE(destValue, parent, key, Type)            \
+    do {                                                        \
+        if (parent.isMember(#key) && parent[#key].is##Type()) { \
+            destValue = parent[#key].as##Type();                \
+        }                                                       \
+    } while (0);
+
+    bool WaterMarker::CheckWaterMarker(char* buffer, size_t bsize)
+    {
+        auto t = transparent;
+        auto r = rotation;
+        auto re = repeat;
+        if (waterMarkerPath == "") {
+            snprintf(buffer,
+                     bsize,
+                     "WaterMarker %s does not contain a image path.",
+                     id == "" ? "" : id.c_str());
+            log_ERROR(buffer);
+            return false;
+        } else {
+            auto s = tb::utils::checkFileCanRead(waterMarkerPath.c_str(), buffer, bsize);
+            if (s == -1u) {
+                log_ERROR(buffer);
+                return false;
+            }
+            waterMarker = new BaseImage(waterMarkerPath.c_str());
+            waterMarker = new BaseImage(waterMarkerPath.c_str(), cv::IMREAD_GRAYSCALE);
+        }
+        if (r < 0) {
+            double rr = 360 - std::fmod(rotation, 360);
+            snprintf(buffer, bsize, "Image ROTATION Get negative value %lf, assume as %lf.", r, rr);
+            rotation = rr;
+            log_WARNING(buffer);
+        }
+        if (r > 360) {
+            double rr = std::fmod(rotation, 360);
+            snprintf(buffer,
+                     bsize,
+                     "Image ROTATION Get value %lf greater than 360, assume as %lf.",
+                     r,
+                     rr);
+            rotation = rr;
+            log_WARNING(buffer);
+        }
+        if (t < 0) {
+            double tt = std::fmod(std::abs(t), 1.0);
+            snprintf(
+                buffer, bsize, "Image TRANSPARENT Get negative value %lf , assume as %lf.", t, tt);
+            transparent = tt;
+            log_WARNING(buffer);
+        }
+        if (t - 1.0 > 1e-5) {
+            double tt = std::fmod(t, 1.0);
+            snprintf(buffer,
+                     bsize,
+                     "Image TRANSPARENT Get value %lf greater than 1.0 , assume as %lf.",
+                     t,
+                     tt);
+            transparent = tt;
+            log_WARNING(buffer);
+        }
+        if (re < 0) {
+            snprintf(buffer, bsize, "Image repeat Get negative value %d, assume as 1.", re);
+            repeat = 1;
+            log_WARNING(buffer);
+        }
+        snprintf(buffer,
+                 bsize,
+                 "WaterMarker %s image %s load successfully.",
+                 id == "" ? "" : id.c_str(),
+                 waterMarkerPath.c_str());
+        log_INFO(buffer);
+        snprintf(
+            buffer,
+            bsize,
+            "Rotation: %lf, Transparent: %lf, Repeat: %d, position: %s, xOffset: %d, yOffset: %d.",
+            rotation,
+            transparent,
+            repeat,
+            position.c_str(),
+            xOffset,
+            yOffset);
+        log_INFO(buffer);
+        return true;
+    }
+
+    WaterMarker* WaterMarker::BuildWaterMarker(const Json::Value& v, char* buffer, size_t bsize)
+    {
+        auto* ret = new WaterMarker();
+        WATER_GETVALUE(ret->id, v, id, String);
+        WATER_GETVALUE(ret->waterMarkerPath, v, image, String);
+        WATER_GETVALUE(ret->rotation, v, rotation, Double);
+
+        WATER_GETVALUE(ret->transparent, v, transparent, Double);
+        WATER_GETVALUE(ret->repeat, v, repeat, Double);
+        auto pos = v["position"];
+        if (pos.isObject()) {
+            WATER_GETVALUE(ret->position, pos, anchor, String);
+            WATER_GETVALUE(ret->xOffset, pos, x, Double);
+            WATER_GETVALUE(ret->yOffset, pos, y, Double);
+        }
+        bool status = ret->CheckWaterMarker(buffer, bsize);
+        return status ? ret : nullptr;
+    }
+
     int ImageProcessingDestroy()
     {
         return 0;
     }
-
-#define WATER_GETVALUE(destValue, parent, key, Type)               \
-    do {                                                           \
-        if (parent.isMember(#key) && waterMark[#key].is##Type()) { \
-            destValue = parent[#key].as##Type();                   \
-        }                                                          \
-    } while (0);
 
 
     int ImageProcessingStartup(const Json::Value& v)
@@ -332,16 +413,18 @@ namespace fc
 
         if (image.isMember("waterMark")) {
             auto waterMark = image["waterMark"];
-            WATER_GETVALUE(Image::waterMarker, waterMark, waterMarkImage, String);
-            WATER_GETVALUE(Image::rotation, waterMark, rotation, Double);
-            WATER_GETVALUE(Image::transparent, waterMark, transparent, Double);
-
-            WATER_GETVALUE(Image::repeat, waterMark, repeat, Double);
-            if (waterMark.isMember("position") && waterMark["position"].isObject()) {
-                auto pos = waterMark["position"];
-                WATER_GETVALUE(Image::position, pos, position, String);
-                WATER_GETVALUE(Image::xOffset, pos, x, Double);
-                WATER_GETVALUE(Image::yOffset, pos, y, Double);
+            auto handler = ImageProcessingHandler::getImageProcessingHandler();
+            if (waterMark.isArray()) {
+                for (Json::ArrayIndex i = 0; i < waterMark.size(); i++) {
+                    auto w = waterMark[i];
+                    if (w.isObject()) {
+                        handler.AddWaterMarker(
+                            WaterMarker::BuildWaterMarker(w, buffer, bufferSize));
+                    }
+                }
+            } else if (waterMark.isObject()) {
+                handler.AddWaterMarker(
+                    WaterMarker::BuildWaterMarker(waterMark, buffer, bufferSize));
             }
         }
         if (image.isMember("ocr")) {
@@ -364,7 +447,6 @@ namespace fc
                 }
             }
         }
-        Image::parseArgs(buffer, bufferSize);
         return 0;
     }
 
@@ -376,19 +458,20 @@ namespace fc
         return 0;
     }
 
-    int ProcessingOCR(const char* path, OcrResult& result)
+    int ProcessingOCR(const string& path, OcrResult& result)
     {
         return ProcessingOCR(
             path, result.words, result.id, result.errMessage, result.errCode, result.json);
     }
 
-    int ProcessingOCR(const char* path,
+    int ProcessingOCR(const string& _path,
                       std::vector<std::string>& vstring,
                       uint64_t& _id,
                       std::string& _errmessage,
                       int& _errcode,
                       std::string& json)
     {
+        auto path = _path.c_str();
         Json::Value result;
         std::string image;
         if (access(path, R_OK) != 0) {
