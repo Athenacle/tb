@@ -14,6 +14,9 @@
 #include <zlib.h>
 #include <boost/pool/pool.hpp>
 
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 namespace tb
 {

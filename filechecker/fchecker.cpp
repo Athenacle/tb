@@ -2,9 +2,6 @@
 #include "fchecker.h"
 #include "logger.h"
 
-#ifdef UNIX_HAVE_SYS_PRCTL
-#include <sys/prctl.h>
-#endif
 #include <sys/stat.h>
 #include <algorithm>
 #include <iostream>

@@ -4,6 +4,8 @@
 #define FCHECKER_H
 
 #include "taobao.h"
+#include "threads.h"
+
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif

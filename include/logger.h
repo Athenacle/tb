@@ -4,6 +4,7 @@
 #ifndef LOG_H
 #define LOG_H
 #include "taobao.h"
+#include "threads.h"
 
 #include <sys/types.h>
 #include <boost/pool/object_pool.hpp>
