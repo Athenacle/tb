@@ -223,9 +223,11 @@ namespace tb
 
         int base64Encode(unsigned char*, size_t, char**, bool = false);
 
+        size_t checkFileCanRead(const char*, char*, size_t);
+
         void* openFile(const char*, size_t&, char**, unsigned int = O_RDONLY);
 
-        int destroyFile(void*, size_t , char**);
+        int destroyFile(void*, size_t, char**);
 
     };  // namespace utils
 }  // namespace tb

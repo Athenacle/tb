@@ -87,19 +87,34 @@ namespace tb
             return length;
         }
 
-        void* openFile(const char* _path, size_t& size, char** buffer, unsigned int mask)
+        size_t checkFileCanRead(const char* _path, char* buffer, size_t size)
         {
-            *buffer = requestMemory(strlen(_path) + 1);
             struct stat st;
             int status = stat(_path, &st);
             if (status == -1) {
-                sprintf(*buffer, "Get status of file %s faild: %s", _path, strerror(errno));
-                return nullptr;
+                snprintf(buffer, size, "Get status of file %s faild: %s", _path, strerror(errno));
+                return -1u;
             }
             if (!S_ISREG(st.st_mode)) {
-                sprintf(*buffer,
-                        "Open file: %s, this file does not appear a regular file. Skip.",
-                        _path);
+                snprintf(
+                    buffer, size, "File: %s does not appear to be a regular file. Skip.", _path);
+                return -1u;
+            }
+            status = access(_path, R_OK);
+            if (status == -1) {
+                snprintf(buffer, size, "File: %s cannot read: %s", _path, strerror(errno));
+                return -1u;
+            }
+            return st.st_size;
+        }
+
+        void* openFile(const char* _path, size_t& size, char** buffer, unsigned int mask)
+        {
+            auto bufferLength = strlen(_path) + 64;
+            *buffer = requestMemory(bufferLength);
+
+            size = checkFileCanRead(_path, *buffer, bufferLength);
+            if (size == -1u) {
                 return nullptr;
             }
             int fd = open(_path, mask);
@@ -108,7 +123,6 @@ namespace tb
                 return nullptr;
             }
             void* ret = nullptr;
-            size = st.st_size;
 #ifdef UNIX_USE_MMAP
             unsigned int mmapMask = 0;
             if ((mask & O_WRONLY) == O_WRONLY) {
