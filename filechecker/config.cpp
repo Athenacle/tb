@@ -179,10 +179,15 @@ void fcInit(const char *json)
         releaseMemory(error);
         exit(-1);
     }
-    Reader *parser = new Reader(Features::strictMode());
-    Value root;
-    if (!parser->parse(buffer, root)) {
+
+    Json::CharReaderBuilder builder;
+    Json::CharReader *reader(builder.newCharReader());
+    Json::Value root;
+    JSONCPP_STRING errs;
+    bool ok = reader->parse(buffer, buffer + size, &root, &errs);
+    if (!ok) {
         //Failed to parse json file.
+        log_FATAL(errs.c_str());
         exit(-3);
     }
     tb::barrier b(2);
