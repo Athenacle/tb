@@ -37,23 +37,21 @@ namespace
 }  // namespace
 
 
-void* StartLog(void* b)
-{
-    tb::Logger::instance->TID = tb::thread_ns::getTID();
-    tb::thread_ns::SetThreadName("logger");
-    if (b != nullptr) {
-        reinterpret_cast<tb::thread_ns::barrier*>(b)->wait();
-    }
-    tb::Logger::instance->InternalLogWriter();
-    return nullptr;
-}
-
 namespace tb
 {
     Logger* Logger::instance = nullptr;
     boost::object_pool<Logger::LogMessageObject>* Logger::objPool = nullptr;
     boost::pool<>* Logger::LogMessageObject::charPool;
     mutex Logger::objPoolMutex;
+
+    void* Logger::start(void* bar, void*, void*)
+    {
+        if (bar != nullptr) {
+            reinterpret_cast<tb::thread_ns::barrier*>(bar)->wait();
+        }
+        instance->InternalLogWriter();
+        return nullptr;
+    }
 
     void Logger::LogMessageObject::Setup(pthread_t _tid,
                                          LogSeverity _severity,
@@ -83,7 +81,7 @@ namespace tb
 
     void Logger::StartThread(barrier* b)
     {
-        logger = thread(::StartLog, b);
+        begin(b);
     }
 
     Logger::~Logger()
@@ -95,7 +93,7 @@ namespace tb
         close(PRESERVED_STDOUT_FILENO);
     }
 
-    Logger::Logger()
+    Logger::Logger() : thread()
     {
         dup2(STDOUT_FILENO, PRESERVED_STDOUT_FILENO);
         stopping = false;
@@ -222,7 +220,7 @@ namespace tb
                 msgMtx.lock();
                 cond.notify_all();
                 msgMtx.unlock();
-                Logger::instance->logger.join();
+                instance->join();
                 delete Logger::instance;
                 delete Logger::objPool;
                 Logger::LogMessageObject::charPool->~pool<>();

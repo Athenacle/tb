@@ -21,6 +21,7 @@
 #endif
 
 #ifdef USE_CXX_THREAD
+#include <boost/thread/barrier.hpp>
 #include <boost/thread/condition_variable.hpp>
 #include <boost/thread/mutex.hpp>
 #include <boost/thread/thread.hpp>
@@ -30,7 +31,6 @@
 #else
 #error "Please choose a thread library."
 #endif
-
 namespace tb
 {
     class Settings;
@@ -38,23 +38,77 @@ namespace tb
 
     namespace thread_ns
     {
+        class thread;
+        class thread_arguments;
+
+        class thread_arguments
+        {
+        public:
+            void* arg1;
+            void* arg2;
+            void* arg3;
+            thread* const thisPointer;
+            thread_arguments(thread* const tp,
+                             void* a1 = nullptr,
+                             void* a2 = nullptr,
+                             void* a3 = nullptr)
+                : arg1(a1), arg2(a2), arg3(a3), thisPointer(tp)
+            {
+            }
+        };
+
         inline void SetThreadName(const char* n)
         {
 #if defined UNIX_HAVE_PRCTL && defined UNIX_HAVE_SYS_PRCTL
             prctl(PR_SET_NAME, n);
 #endif
         }
-
 #ifdef USE_CXX_THREAD
+        using boost::barrier;
         using boost::mutex;
-        using boost::thread;
-
         using tid = boost::thread::id;
 
-        inline tid getTID()
+        class thread
         {
-            return boost::this_thread::get_id();
-        }
+            boost::thread thisThread;
+            const char* threadName;
+
+            tid getTID()
+            {
+                return boost::this_thread::get_id();
+            }
+
+            static void* thread_exec(void* para)
+            {
+                auto a = reinterpret_cast<thread_arguments*>(para);
+
+                if (a != nullptr) {
+                    SetThreadName(a->thisPointer->threadName);
+                }
+                return a->thisPointer->start(a->arg1, a->arg2, a->arg3);
+            }
+
+        public:
+            virtual void* start(void*, void*, void*) = 0;
+
+            void begin(void* p1 = nullptr, void* p2 = nullptr, void* p3 = nullptr)
+            {
+                auto arg = new thread_arguments(this, p1, p2, p3);
+                boost::thread(thread_exec, arg);
+            }
+
+            thread(const char* n = nullptr)
+            {
+                threadName = n;
+            }
+
+            virtual ~thread() {}
+
+            void join(void** = nullptr)
+            {
+                return thisThread.join();
+            }
+        };
 
         class condition_variable
         {
@@ -168,24 +222,45 @@ namespace tb
         {
         private:
             tid TID;
+            const char* threadName;
 
-        public:
-            thread()
+            static void* thread_exec(void* para)
+            {
+                auto a = reinterpret_cast<thread_arguments*>(para);
+
+                if (a != nullptr) {
+                    SetThreadName(a->thisPointer->threadName);
+                }
+                return a->thisPointer->start(a->arg1, a->arg2, a->arg3);
+            }
+
+            thread(thread&) = delete;
+
+        protected:
+            virtual void* start(void*, void*, void*) = 0;
+
+            virtual ~thread() {}
+
+            void begin(void* p1 = nullptr, void* p2 = nullptr, void* p3 = nullptr)
+            {
+                auto arg = new thread_arguments(this, p1, p2, p3);
+                pthread_create(&TID, nullptr, thread_exec, arg);
+            }
+
+            thread(const char* n = nullptr)
             {
                 TID = 0;
-            }
-            thread(thread& thr)
-            {
-                TID = thr.TID;
-            }
-            explicit thread(th_fn fn, void* args = nullptr)
-            {
-                pthread_create(&TID, nullptr, fn, args);
+                threadName = n;
             }
 
             void join(void** retVal = nullptr)
             {
                 pthread_join(TID, retVal);
+            }
+
+            tid getTid() const
+            {
+                return TID;
             }
         };
 

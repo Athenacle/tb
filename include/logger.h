@@ -19,8 +19,6 @@ using std::tuple;
 using std::vector;
 
 
-void* StartLog(void*);
-
 namespace tb
 {
     enum LogSeverity {
@@ -44,10 +42,8 @@ namespace tb
 
     using namespace tb::thread_ns;
 
-    class Logger
+    class Logger : public tb::thread_ns::thread
     {
-        friend void* ::StartLog(void*);
-
         struct LogMessageObject {
             static boost::pool<>* charPool;
 
@@ -63,6 +59,8 @@ namespace tb
         };
 
     private:
+        virtual void* start(void*, void*, void*) override;
+
         static mutex objPoolMutex;
         static boost::object_pool<Logger::LogMessageObject>* objPool;
         static Logger* instance;
@@ -71,8 +69,6 @@ namespace tb
 
         queue<LogMessageObject*> msgQueue;
 
-        tid TID;
-        thread logger;
         condition_variable msgQueueCond;
         mutex msgQueueMutex;
         mutex backendsMutex;
