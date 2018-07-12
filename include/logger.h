@@ -55,7 +55,7 @@ namespace tb
 
             LogMessageObject(const LogMessageObject&) = delete;
             LogMessageObject() {}
-            void Setup(pthread_t, LogSeverity, const char*, const char*);
+            void Setup(const char*, LogSeverity, const char*, const char*);
             ~LogMessageObject();
         };
 
@@ -93,17 +93,17 @@ namespace tb
     public:
         Logger& AddFileBackend(const char*, const LogSeverity = INFO, bool = false);
         Logger& AddConsoleBackend(const LogSeverity = INFO);
-        void LogProcessor(pthread_t, LogSeverity, const char*);
+        void LogProcessor(const char*, LogSeverity, const char*);
         static Logger& getLogger(barrier* = nullptr);
         static void DestoryLogger();
     };
 }  // namespace tb
 
 
-#define BUILD_FUNCTION(severity)                                                 \
-    inline void log_##severity(const char* msg)                                  \
-    {                                                                            \
-        tb::Logger::getLogger().LogProcessor(pthread_self(), tb::severity, msg); \
+#define BUILD_FUNCTION(severity)                                                                 \
+    inline void log_##severity(const char* msg)                                                  \
+    {                                                                                            \
+        tb::Logger::getLogger().LogProcessor(tb::thread_ns::GetThreadName(), tb::severity, msg); \
     }
 
 

@@ -53,25 +53,19 @@ namespace tb
         return nullptr;
     }
 
-    void Logger::LogMessageObject::Setup(pthread_t _tid,
-                                         LogSeverity _severity,
+    void Logger::LogMessageObject::Setup(const char* _name,
+                                         LogSeverity _s,
                                          const char* _msg,
                                          const char* _timestamp)
     {
-        static const char logSeverityString[][8] = {
-            "TRACE", "DEBUG", "INFO", "WARNING", "ERROR", "FATAL", "NONE"};
+        static const char ss[][8] = {
+            "TRACE", "DEBUG", "INFOM", "WARNI", "ERROR", "FATAL", "NONE"};
 
-        severity = _severity;
-        tid = _tid;
         size_t size = strlen(_msg) + strlen(_timestamp) + 64;
         msg = static_cast<char*>(Logger::LogMessageObject::charPool->ordered_malloc(size));
-        length = snprintf(msg,
-                          size,
-                          "%s - [%s] - %lx - %s \n",
-                          _timestamp,
-                          logSeverityString[_severity],
-                          tid,
-                          _msg);
+        length = snprintf(
+            msg, size, "%s [%5s] %5s: %s\n", _timestamp, ss[_s], _name, _msg);
+        tb::utils::releaseMemory(_name);
     }
 
     Logger::LogMessageObject::~LogMessageObject()
@@ -100,7 +94,7 @@ namespace tb
         newLog = true;
     }
 
-    void Logger::LogProcessor(pthread_t tid, LogSeverity severity, const char* msg)
+    void Logger::LogProcessor(const char* name, LogSeverity severity, const char* msg)
     {
         static auto& m = Logger::objPoolMutex;
         bool log = false;
@@ -111,9 +105,8 @@ namespace tb
             // only print log when accept
 
             m.lock();
-            std::cout << pthread_self() << std::endl;
             LogMessageObject* msgObj = Logger::objPool->construct();
-            msgObj->Setup(tid, severity, msg, getTimeStamp());
+            msgObj->Setup(name, severity, msg, getTimeStamp());
             m.unlock();
 
             msgQueueMutex.lock();

@@ -46,6 +46,18 @@ namespace tb
             prctl(PR_SET_NAME, n);
 #endif
         }
+
+        inline const char* GetThreadName()
+        {
+#if defined UNIX_HAVE_PRCTL && defined UNIX_HAVE_SYS_PRCTL
+            char* buffer = tb::utils::requestMemory(16);
+            prctl(PR_GET_NAME, buffer);
+            return buffer;
+#else
+            return nullptr
+#endif
+        }
+
 #ifdef USE_CXX_THREAD
         using boost::barrier;
         using boost::mutex;
@@ -219,7 +231,7 @@ namespace tb
                     SetThreadName(thsP->threadName);
                 }
                 delete a;
-                return thsP->start(p1,p2,p3);
+                return thsP->start(p1, p2, p3);
             }
 
             thread(thread&) = delete;
@@ -228,6 +240,7 @@ namespace tb
             virtual void* start(void*, void*, void*) = 0;
 
             virtual ~thread() {}
+
         public:
             void begin(void* p1 = nullptr, void* p2 = nullptr, void* p3 = nullptr)
             {
