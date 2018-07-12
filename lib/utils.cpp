@@ -44,14 +44,16 @@ namespace tb
 
         char* requestMemory(unsigned long _size)
         {
-            return reinterpret_cast<char*>(__pool->ordered_malloc(_size));
+            //return reinterpret_cast<char*>(__pool->ordered_malloc(_size));
+            return reinterpret_cast<char*>(malloc(_size));
         }
 
         void releaseMemory(const void* _ptr)
         {
-            if (_ptr != nullptr) {
-                __pool->ordered_free(const_cast<void*>(_ptr));
-            }
+        //     if (_ptr != nullptr) {
+        //         __pool->ordered_free(const_cast<void*>(_ptr));
+        //     }
+            free((void*)_ptr);
         }
 
         int gzCompress(unsigned char* _in, size_t _in_size, unsigned char** _out)
@@ -153,7 +155,8 @@ namespace tb
             }
 #endif
             close(fd);
-            releaseMemory(buffer);
+
+            releaseMemory(*buffer);
             return ret;
         }
 

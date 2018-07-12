@@ -7,7 +7,7 @@
 #ifdef UNIX_HAVE_SYS_PRCTL
 #include <sys/prctl.h>
 #endif
-
+#include <iostream>
 #ifdef USE_CXX_THREAD
 #include <boost/thread/barrier.hpp>
 #include <boost/thread/condition_variable.hpp>
@@ -201,6 +201,7 @@ namespace tb
 
         using th_fn = void* (*)(void*);
 
+
         class thread
         {
         private:
@@ -210,11 +211,15 @@ namespace tb
             static void* thread_exec(void* para)
             {
                 auto a = reinterpret_cast<thread_arguments*>(para);
-
-                if (a != nullptr) {
-                    SetThreadName(a->thisPointer->threadName);
+                auto p1 = a->arg1;
+                auto p2 = a->arg2;
+                auto p3 = a->arg3;
+                auto thsP = a->thisPointer;
+                if (thsP->threadName != nullptr) {
+                    SetThreadName(thsP->threadName);
                 }
-                return a->thisPointer->start(a->arg1, a->arg2, a->arg3);
+                delete a;
+                return thsP->start(p1,p2,p3);
             }
 
             thread(thread&) = delete;
@@ -223,7 +228,7 @@ namespace tb
             virtual void* start(void*, void*, void*) = 0;
 
             virtual ~thread() {}
-
+        public:
             void begin(void* p1 = nullptr, void* p2 = nullptr, void* p3 = nullptr)
             {
                 auto arg = new thread_arguments(this, p1, p2, p3);

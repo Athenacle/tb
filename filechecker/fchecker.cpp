@@ -4,6 +4,8 @@
 
 #include <sys/stat.h>
 #include <algorithm>
+#include <cstdlib>
+#include <ctime>
 #include <iostream>
 #include <vector>
 
@@ -46,9 +48,11 @@ SystemConfig globalConfig;
 namespace fc
 {
     FcHandler* FcHandler::instance = nullptr;
+    ItemSchedular* ItemSchedular::instance = nullptr;
 
     // FcHandler ==================
-    FcHandler::FcHandler(const SystemConfig& _config) : config(_config)
+    FcHandler::FcHandler(const SystemConfig& _config)
+        : config(_config), itemSched(ItemSchedular::getSchedular())
     {
     }
 
@@ -94,7 +98,7 @@ namespace fc
             } else {
                 *end = '/';
                 *(end + 1) = 0;
-                strcpy(end  + 1, fname);
+                strcpy(end + 1, fname);
                 struct stat st;
                 int statRet = stat(name, &st);
                 if (statRet == -1) {
@@ -125,8 +129,7 @@ namespace fc
         closedir(dir);
         if (IMGs.size() % 3 != 0) {
             char* buffer = requestMemory(length + 128);
-            sprintf(
-                buffer, "Image Number in directory %s cannot be divided by 3 well.", parentPTR);
+            sprintf(buffer, "Image Number in directory %s cannot be divided by 3 well.", parentPTR);
             log_ERROR(buffer);
             releaseMemory(buffer);
         } else {
@@ -140,10 +143,11 @@ namespace fc
                 i++;
                 auto p3 = IMGs[i];
                 i++;
-                auto it = Item(std::get<FNAME>(p1), std::get<FNAME>(p2), std::get<FNAME>(p3));
+                auto it = new Item(std::get<FNAME>(p1), std::get<FNAME>(p2), std::get<FNAME>(p3));
+                ItemSchedular::getSchedular().addItem(it);
             }
         }
-        for(auto& ref: IMGs){
+        for (auto& ref : IMGs) {
             releaseMemory(std::get<FNAME>(ref));
         }
     }
@@ -164,14 +168,95 @@ namespace fc
 
     // FcHandler END ====================
 
+    // ItemSchedular
+
+    ItemSchedular::ItemSchedular() {}
+
+    int ItemSchedular::addItem(Item* i)
+    {
+        queueMutex.lock();
+        items.emplace(i);
+        int size = items.size();
+        _cv.notify_all();
+        queueMutex.unlock();
+        return size;
+    }
+
+    void ItemSchedular::buildProcessor(int count)
+    {
+        if (count <= 0) {
+            count = 1;
+        }
+        processCount = count;
+        for (int i = 0; i < count; i++) {
+            processors.emplace_back(new ItemProcessor(*this));
+        }
+        for (auto& p : processors) {
+            p->begin();
+        }
+    }
+
+    Item* ItemSchedular::getItem()
+    {
+        _cv.wait(queueMutex, [this] { return this->items.size() > 0; });
+        auto r = items.front();
+        items.pop();
+        queueMutex.unlock();
+        return r;
+    }
+    // ItemSchedular END
+    // ItemProcessor
+
+    void* ItemProcessor::start(void*, void*, void*)
+    {
+        do {
+            auto i = ItemSchedular::getSchedular().getItem();
+            if (i == nullptr) {
+                break;
+            }
+            i->processing();
+            usleep(rand() % 5000);
+            delete i;
+        } while (true);
+        return nullptr;
+    }
+
+    void ItemSchedular::stopSchedular()
+    {
+        for (int i = 0; i < processCount; i++) {
+            ItemSchedular::getSchedular().addItem(nullptr);
+        }
+        for (auto& thr : processors) {
+            thr->join();
+            delete thr;
+        }
+    }
+
+    ItemSchedular& ItemSchedular::getSchedular()
+    {
+        if (instance == nullptr) {
+            instance = new ItemSchedular();
+        }
+        return *instance;
+    }
+
+    ItemProcessor::ItemProcessor(ItemSchedular& s) : thread("itemProcessor"), sched(s) {}
+    //ItemProcessor
     // item
 
     Item::Item(const char* _p1, const char* _p2, const char* _p3)
-        :  PIC_1(stringDUP(_p1)), PIC_2(stringDUP(_p2)), PIC_3(stringDUP(_p3))
+        : PIC_1(stringDUP(_p1)), PIC_2(stringDUP(_p2)), PIC_3(stringDUP(_p3))
     {
-        char* buf = requestMemory(256);
-        sprintf(buf, "Get Item: %s %s %s ", _p1, _p2, _p3);
+    }
+
+    int Item::processing()
+    {
+        char* buf = requestMemory(1024);
+        sprintf(
+            buf, "Processing Item: %s %s %s, at thread %lx ", PIC_1, PIC_2, PIC_3, pthread_self());
+        log_INFO(buf);
         releaseMemory(buf);
+        return 0;
     }
 
     // item
@@ -186,11 +271,18 @@ namespace fc
 
 int main(int argc, char* argv[])
 {
+    srand(time(nullptr));
     tb::SetThreadName("main");
-    auto&& handler = fc::FcHandler::getHandler();
+    auto& handler = fc::FcHandler::getHandler();
     if (argc > 1)
         fcInit(argv[1]);
     else
         version(argv[0]);
+    auto& sc = fc::ItemSchedular::getSchedular();
+    sc.buildProcessor(globalConfig.threadCount);
     fc::Start(handler);
+    sc.stopSchedular();
+
+    tb::Logger::DestoryLogger();
+    fc::ImageProcessingDestroy();
 }

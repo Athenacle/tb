@@ -3,6 +3,7 @@
 #ifndef FCHECKER_H
 #define FCHECKER_H
 
+#include "image.h"
 #include "taobao.h"
 #include "threads.h"
 
@@ -40,7 +41,7 @@ public:
     bool useInotify;
     int uid, gid;
     bool forkToBackground;
-
+    int threadCount;
 
     SystemConfig()
     {
@@ -115,7 +116,12 @@ namespace fc
         const char* PIC_2;
         const char* PIC_3;
 
+        std::string bcode;
+        std::string fcode;
+        int price;
+
     public:
+        int processing();
         Item(const char*, const char*, const char*);
         ~Item()
         {
@@ -123,6 +129,43 @@ namespace fc
             releaseMemory(PIC_2);
             releaseMemory(PIC_3);
         }
+    };
+
+
+    using tb::thread_ns::condition_variable;
+    using tb::thread_ns::mutex;
+
+    class ItemSchedular;
+    class ItemProcessor;
+
+    class ItemSchedular
+    {
+        std::queue<Item*> items;
+        mutex queueMutex;
+        bool work;
+        condition_variable _cv;
+        int processCount;
+        std::vector<ItemProcessor*> processors;
+
+        static ItemSchedular* instance;
+        ItemSchedular();
+
+    public:
+        static ItemSchedular& getSchedular();
+        void buildProcessor(int = 1);
+        void stopSchedular();
+        int addItem(Item*);
+        Item* getItem();
+    };
+
+    class ItemProcessor : public tb::thread_ns::thread
+    {
+        ItemSchedular& sched;
+
+    public:
+        virtual ~ItemProcessor(){};
+        ItemProcessor(ItemSchedular&);
+        virtual void* start(void* = nullptr, void* = nullptr, void* = nullptr) override;
     };
 
     class FcHandler
@@ -133,6 +176,8 @@ namespace fc
         static FcHandler* instance;
         const SystemConfig& config;
         mutex queueMutex;
+
+        ItemSchedular& itemSched;
 
         FcHandler(const SystemConfig&);
         void setProductPath(const char*);

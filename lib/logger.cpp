@@ -93,7 +93,7 @@ namespace tb
         close(PRESERVED_STDOUT_FILENO);
     }
 
-    Logger::Logger() : thread()
+    Logger::Logger() : thread("logger")
     {
         dup2(STDOUT_FILENO, PRESERVED_STDOUT_FILENO);
         stopping = false;
@@ -111,6 +111,7 @@ namespace tb
             // only print log when accept
 
             m.lock();
+            std::cout << pthread_self() << std::endl;
             LogMessageObject* msgObj = Logger::objPool->construct();
             msgObj->Setup(tid, severity, msg, getTimeStamp());
             m.unlock();

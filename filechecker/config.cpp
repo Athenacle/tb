@@ -22,6 +22,28 @@ using tb::LogSeverity;
 
 namespace
 {
+    void PrintConfigInfo(char *buffer, size_t bsize)
+    {
+        snprintf(buffer, bsize, "System Configuration:");
+        log_INFO(buffer);
+        snprintf(buffer, bsize, "\trootDirectory: %s", globalConfig.path.c_str());
+        log_INFO(buffer);
+        snprintf(buffer, bsize, "\trawDirectory: %s", globalConfig.rawPath.c_str());
+        log_INFO(buffer);
+        snprintf(buffer, bsize, "\tproductDirectory: %s", globalConfig.productPath.c_str());
+        log_INFO(buffer);
+        snprintf(buffer, bsize, "\tUse Inotify: %s", globalConfig.useInotify ? "True" : "False");
+        log_INFO(buffer);
+        snprintf(buffer, bsize, "\tUID: %d, GID: %d", globalConfig.uid, globalConfig.gid);
+        log_INFO(buffer);
+        snprintf(buffer,
+                 bsize,
+                 "\tWill forkToBackground: %s, workerThreadCount: %d",
+                 globalConfig.forkToBackground ? "True" : "False",
+                 globalConfig.threadCount);
+        log_INFO(buffer);
+    }
+
     LogSeverity intToSeverity(int i)
     {
         switch (i) {
@@ -119,6 +141,7 @@ void StartSystem(const Json::Value &jsonRoot)
     string productDir = "";
     bool useInotify;
     int uid, gid;
+    int workCount;
     uid = gid = -1;
     auto &root = jsonRoot["system"];
     getValue(rootDirectory, root, String, dir);
@@ -127,7 +150,9 @@ void StartSystem(const Json::Value &jsonRoot)
     getValue(uid, root, Int, uid);
     getValue(rawDirectory, root, String, rawDir);
     getValue(productDir, root, String, productDir);
+    getValue(workerThreadCount, root, Int, workCount);
 
+    globalConfig.threadCount = workCount;
     globalConfig.path = (dir);
     globalConfig.uid = uid;
     globalConfig.gid = gid;
@@ -135,7 +160,8 @@ void StartSystem(const Json::Value &jsonRoot)
     globalConfig.rawPath = (rawDir);
     globalConfig.productPath = (productDir);
 
-    char *buffer = requestMemory((dir.length()) + 128);
+    size_t bsize = dir.length() + 4096;
+    char *buffer = requestMemory(bsize);
 #ifdef USE_INOTIFY
     if (useInotify) {
         globalConfig.inotifyFD = inotify_init();
@@ -148,7 +174,7 @@ void StartSystem(const Json::Value &jsonRoot)
             sprintf(buffer, "Set UID of %d Failed: %s", uid, strerror(errno));
             log_ERROR(buffer);
         } else {
-            sprintf(buffer, "Set UID of %d Success,,", uid);
+            sprintf(buffer, "Set UID of %d Success", uid);
             log_TRACE(buffer);
         }
     }
@@ -157,10 +183,11 @@ void StartSystem(const Json::Value &jsonRoot)
             sprintf(buffer, "Set GID of %d Failed: %s", gid, strerror(errno));
             log_ERROR(buffer);
         } else {
-            sprintf(buffer, "Set GID of %d Success,,", gid);
+            sprintf(buffer, "Set GID of %d Success", gid);
             log_TRACE(buffer);
         }
     }
+    PrintConfigInfo(buffer, bsize);
     releaseMemory(buffer);
 }
 
@@ -170,7 +197,7 @@ void fcInit(const char *json)
 {
     using namespace Json;  //jsoncpp
 
-    atexit(fcExit);
+    tb::utils::InitCoreUtilties();
     char *error;
     size_t size;
     char *buffer = reinterpret_cast<char *>(tb::utils::openFile(json, size, &error));
@@ -181,7 +208,8 @@ void fcInit(const char *json)
     }
 
     Json::CharReaderBuilder builder;
-    Json::CharReader *reader(builder.newCharReader());
+    auto r = builder.newCharReader();
+    Json::CharReader *reader(r);
     Json::Value root;
     JSONCPP_STRING errs;
     bool ok = reader->parse(buffer, buffer + size, &root, &errs);
@@ -195,14 +223,8 @@ void fcInit(const char *json)
     StartSystem(root);
     fc::ImageProcessingStartup(root);
     tb::utils::destroyFile(buffer, size, &error);
+    delete r;
 }
-
-void fcExit()
-{
-    Logger::DestoryLogger();
-    fc::ImageProcessingDestroy();
-}
-
 
 #ifndef PROJECT_VERSION
 #define PROJECT_VERSION "unknown"

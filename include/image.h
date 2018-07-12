@@ -13,6 +13,7 @@
 
 #include "logger.h"
 #include "taobao.h"
+#include "threads.h"
 
 void* OCRThread(void*);
 
@@ -57,16 +58,9 @@ namespace fc
     int ImageProcessingStartup(const Json::Value&);
     int ImageProcessingStartup(const string&, const string&, const string&);
 
-    class ImageProcessingHandler
-    {
-        using iph = ImageProcessingHandler;
-        std::vector<const WaterMarker*> waters;
-        static iph* instance;
-
-    public:
-        static iph& getImageProcessingHandler();
-        void AddWaterMarker(const WaterMarker*);
-    };
+    using tb::thread_ns::condition_variable;
+    using tb::thread_ns::mutex;
+    using tb::thread_ns::thread;
 
     class BaseImage
     {
@@ -92,11 +86,16 @@ namespace fc
         int WriteToFile(const char* = nullptr);
 
         int getItemCode(string&, string&, int& price);
-        int AddWaterPrint(const WaterMarker&);
+        int AddWaterPrint();
     };
 
     class WaterMarker
     {
+        friend int ImageProcessingStartup(const Json::Value&);
+        friend int ImageProcessingDestroy();
+
+        static std::vector<WaterMarker*> markers;
+
         string id;
         string waterMarkerPath;
         string position;
@@ -113,6 +112,7 @@ namespace fc
         bool CheckWaterMarker(char*, size_t);
 
     public:
+        ~WaterMarker();
         WaterMarker();
         static WaterMarker* BuildWaterMarker(const Json::Value&, char*, size_t);
     };

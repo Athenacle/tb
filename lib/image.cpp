@@ -132,21 +132,7 @@ namespace
 
 namespace fc
 {
-    ImageProcessingHandler* ImageProcessingHandler::instance = nullptr;
-
-    ImageProcessingHandler& ImageProcessingHandler::getImageProcessingHandler()
-    {
-        if (instance == nullptr) {
-            instance = new ImageProcessingHandler();
-        }
-        return *instance;
-    }
-
-    void ImageProcessingHandler::AddWaterMarker(const WaterMarker* wm)
-    {
-        auto h = getImageProcessingHandler().waters;
-        waters.emplace_back(wm);
-    }
+    std::vector<WaterMarker*> WaterMarker::markers;
 
     BaseImage::BaseImage(const char* _path, unsigned int mask) : filename(_path)
     {
@@ -309,8 +295,8 @@ namespace fc
                 log_ERROR(buffer);
                 return false;
             }
-            waterMarker = new BaseImage(waterMarkerPath.c_str());
-            waterMarker = new BaseImage(waterMarkerPath.c_str(), cv::IMREAD_GRAYSCALE);
+            this->waterMarker = new BaseImage(waterMarkerPath.c_str());
+            this->waterMarkerMask = new BaseImage(waterMarkerPath.c_str(), cv::IMREAD_GRAYSCALE);
         }
         if (r < 0) {
             double rr = 360 - std::fmod(rotation, 360);
@@ -370,6 +356,15 @@ namespace fc
         return true;
     }
 
+    WaterMarker::~WaterMarker()
+    {
+        std::cout << "delete " << this;
+        if (waterMarker != nullptr)
+            delete waterMarker;
+        if (waterMarkerMask != nullptr)
+            delete waterMarkerMask;
+    }
+
     WaterMarker* WaterMarker::BuildWaterMarker(const Json::Value& v, char* buffer, size_t bsize)
     {
         auto* ret = new WaterMarker();
@@ -391,6 +386,9 @@ namespace fc
 
     int ImageProcessingDestroy()
     {
+        for (auto& m : WaterMarker::markers) {
+            delete m;
+        }
         return 0;
     }
 
@@ -413,18 +411,16 @@ namespace fc
 
         if (image.isMember("waterMark")) {
             auto waterMark = image["waterMark"];
-            auto handler = ImageProcessingHandler::getImageProcessingHandler();
+            auto& markers = WaterMarker::markers;
             if (waterMark.isArray()) {
                 for (Json::ArrayIndex i = 0; i < waterMark.size(); i++) {
                     auto w = waterMark[i];
                     if (w.isObject()) {
-                        handler.AddWaterMarker(
-                            WaterMarker::BuildWaterMarker(w, buffer, bufferSize));
+                        markers.push_back(WaterMarker::BuildWaterMarker(w, buffer, bufferSize));
                     }
                 }
             } else if (waterMark.isObject()) {
-                handler.AddWaterMarker(
-                    WaterMarker::BuildWaterMarker(waterMark, buffer, bufferSize));
+                markers.push_back(WaterMarker::BuildWaterMarker(waterMark, buffer, bufferSize));
             }
         }
         if (image.isMember("ocr")) {
@@ -447,6 +443,7 @@ namespace fc
                 }
             }
         }
+        tb::utils::releaseMemory(buffer);
         return 0;
     }
 
