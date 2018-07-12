@@ -33,11 +33,6 @@ IF(${jsoncpp_FOUND})
 ENDIF()
 LIST(APPEND libList ${jsoncpp_LIBRARIES})
 
-#pcre2
-PKG_SEARCH_MODULE(libpcre REQUIRED libpcre2-posix)
-MESSAGE(STATUS "libpcre2 version: " ${libpcre_VERSION})
-LIST(APPEND libList ${libpcre2_LIBRARIES})
-ADD_DEFINITIONS(-DPCRE2_CODE_UNIT_WIDTH=8)
 #zbar
 PKG_SEARCH_MODULE(zbar REQUIRED zbar)
 SET(ZBAR_VERSION ${zbar_VERSION})
