@@ -1,7 +1,7 @@
 
 #include "fchecker.h"
 #include "logger.h"
-#include "db.h"
+#include "remote.h"
 
 #include <sys/stat.h>
 #include <algorithm>
@@ -287,5 +287,5 @@ int main(int argc, char* argv[])
 
     tb::Logger::DestoryLogger();
     fc::ImageProcessingDestroy();
-    tb::db::MySQLWorker::destroyMySQLInstance();
+    tb::remote::MySQLWorker::destroyMySQLInstance();
 }

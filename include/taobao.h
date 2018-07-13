@@ -24,7 +24,7 @@ namespace tb
 
     }  // namespace thread_ns
 
-    namespace db
+    namespace remote
     {
         class MySQLWorker;
     }

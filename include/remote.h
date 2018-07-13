@@ -11,7 +11,7 @@
 
 namespace tb
 {
-    namespace db
+    namespace remote
     {
         using std::string;
         using tb::thread_ns::thread;

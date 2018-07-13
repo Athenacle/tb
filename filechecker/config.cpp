@@ -1,5 +1,5 @@
 
-#include "db.h"
+#include "remote.h"
 #include "fchecker.h"
 #include "image.h"
 #include "logger.h"
@@ -168,7 +168,7 @@ void StartMYSQL()
     log_INFO(buffer);
 
     const char *err;
-    auto &sql = tb::db::MySQLWorker::initMySQLInstance(globalConfig.mysqlAddress,
+    auto &sql = tb::remote::MySQLWorker::initMySQLInstance(globalConfig.mysqlAddress,
                                                        globalConfig.mysqlUserName,
                                                        globalConfig.mysqlPassword,
                                                        globalConfig.mysqlDB,
