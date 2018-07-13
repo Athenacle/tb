@@ -1,0 +1,54 @@
+{
+    "logger":[
+        {
+            "filePath": null,
+            "severity": "TRACE",
+            "append": true
+        },
+        {
+            "filePath": "/tmp/error.log",
+            "severity": "ERROR",
+            "append": true
+        },
+        {
+            "filePath": "/tmp/all.log",
+            "severity": "TRACE",
+            "append": false
+        }
+    ],
+    "system":
+    {
+        "rootDirectory" : ".",
+        "rawDirectory": "./raw",
+        "productDirectory":"./product",
+        "useInotify":true,
+        "gid":1000,
+        "uid":1000,
+        "workerThreadCount": 4
+    },
+    "image":{
+        "waterMark":{
+            "id": "",
+            "waterMarkerPath": "/home/wangxiao/Document/water.png",
+            "rotation": 0,
+            "transparent": 1,
+            "repeat": 1,
+            "position":{
+                "pos": "top-left",
+                "x": 0,
+                "y":0
+            }
+        }
+    },
+    "remote":{
+        "mysql":{
+            "enable": true,
+            "compress": true,
+            "address": "127.0.0.1",
+            "port": 3306,
+            "username": "root",
+            "password":"root-password",
+            "db": "some-db"
+        }
+    }
+}
