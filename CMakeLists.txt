@@ -40,6 +40,10 @@ MESSAGE(STATUS "zbar version: " ${zbar_VERSION})
 
 LIST(APPEND libList ${zbar_LIBRARIES})
 
+#mysql
+INCLUDE(FindMySQL REUQIRED)
+LIST(APPEND libList ${MYSQL_LIBRARIES})
+INCLUDE_DIRECTORIES(${MYSQL_INCLUDE_DIR})
 
 #boost
 FIND_PACKAGE(Boost 1.60 COMPONENTS thread regex system)
@@ -76,7 +80,6 @@ INCLUDE(FindCURL)
 LIST(APPEND libList ${CURL_LIBRARIES})
 
 ##dependencies end
-
 #### configure file.
 CONFIGURE_FILE(${TB_INCLUDE_ROOT}/config.h.in
   ${TB_INCLUDE_ROOT}/config.h)

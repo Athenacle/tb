@@ -58,13 +58,11 @@ namespace tb
                                          const char* _msg,
                                          const char* _timestamp)
     {
-        static const char ss[][8] = {
-            "TRACE", "DEBUG", "INFOM", "WARNI", "ERROR", "FATAL", "NONE"};
+        static const char ss[][8] = {"TRACE", "DEBUG", "INFOM", "WARNI", "ERROR", "FATAL", "NONE"};
 
         size_t size = strlen(_msg) + strlen(_timestamp) + 64;
         msg = static_cast<char*>(Logger::LogMessageObject::charPool->ordered_malloc(size));
-        length = snprintf(
-            msg, size, "%s [%5s] %5s: %s\n", _timestamp, ss[_s], _name, _msg);
+        length = snprintf(msg, size, "%s [%5s] %5s: %s\n", _timestamp, ss[_s], _name, _msg);
         tb::utils::releaseMemory(_name);
     }
 

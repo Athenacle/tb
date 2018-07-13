@@ -15,11 +15,11 @@
 #include <unistd.h>
 
 #include <json/json.h>
+#include <mysql.h>
 #include <cstring>
 #include <memory>
 #include <queue>
 #include <string>
-
 
 using std::queue;
 using std::string;
@@ -42,6 +42,16 @@ public:
     int uid, gid;
     bool forkToBackground;
     int threadCount;
+
+    bool mysqlEnable;
+    bool mysqlCompress;
+    string mysqlAddress;
+    int mysqlPort;
+    string mysqlUserName;
+    string mysqlPassword;
+    string mysqlDB;
+
+    static void buildDefaultSystemConfig();
 
     SystemConfig()
     {
@@ -190,6 +200,41 @@ namespace fc
     };
 
     void Start(FcHandler&);
+
+    class MySQLWorker : public thread
+    {
+        using csr = const string&;
+        enum { CONNECTION_NOT_REAL_CONNECT = 0, CONNECTION_FAILED = 1, CONNECTION_SUCCESS = 2 };
+        static MySQLWorker* instance;
+
+        int status;
+
+        MYSQL* _remote;
+        int errNo;
+        const char* errString;
+        string addr;
+        string user;
+        string pass;
+        string db;
+        unsigned int port;
+        bool compress;
+
+        MySQLWorker(const MySQLWorker&) = delete;
+        MySQLWorker(csr, csr, csr, csr, unsigned int, bool);
+
+        void doConnect();
+
+    public:
+        virtual void* start(void*, void*, void*) override;
+
+        virtual ~MySQLWorker();
+
+        bool tryConnect(const char**);
+        const char* getErrorString() const;
+        MySQLWorker* getMySQLInstance();
+        static MySQLWorker& initMySQLInstance(csr, csr, csr, csr, unsigned int, bool);
+    };
+
 }  // namespace fc
 
 
@@ -199,5 +244,7 @@ void parseArguments(int, char* []);
 void version(const char*);
 void StartLog(const Json::Value&, tb::thread_ns::barrier*);
 void StartSystem(const Json::Value&);
+void StartMySql();
+void StartRemote(const Json::Value&);
 
 #endif

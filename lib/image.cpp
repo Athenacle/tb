@@ -358,7 +358,6 @@ namespace fc
 
     WaterMarker::~WaterMarker()
     {
-        std::cout << "delete " << this;
         if (waterMarker != nullptr)
             delete waterMarker;
         if (waterMarkerMask != nullptr)
@@ -507,7 +506,6 @@ namespace fc
         Json::StreamWriterBuilder fwriter;
         fwriter.settings_["indentation"] = "";
         json = Json::writeString(fwriter, result);
-        std::cout << json;
         return vstring.size();
     }
 }  // namespace fc

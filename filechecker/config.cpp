@@ -5,6 +5,7 @@
 
 #include <fcntl.h>
 #include <json/json.h>
+#include <mysql/mysql.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -134,6 +135,73 @@ void StartLog(const Json::Value &doc, tb::thread_ns::barrier *b)
         }                                   \
     } while (false)
 
+void StartMysql()
+{
+    const int bsize = 1024;
+    char *buffer = tb::utils::requestMemory(bsize);
+
+    if (globalConfig.mysqlPort < 0 || globalConfig.mysqlPort >= 65535) {
+        snprintf(buffer,
+                 bsize,
+                 "Invalid MySQL Port Value %d, assume as defualt 3306",
+                 globalConfig.mysqlPort);
+        globalConfig.mysqlPort = 3306;
+        log_WARNING(buffer);
+    }
+
+    snprintf(buffer, bsize, "MySQL Settings");
+    log_INFO(buffer);
+    snprintf(buffer,
+             bsize,
+             "\tAddress: %s, Port: %d",
+             globalConfig.mysqlAddress.c_str(),
+             globalConfig.mysqlPort);
+    log_INFO(buffer);
+    snprintf(buffer,
+             bsize,
+             "\tUsername: %s, Password: %s, Compress: %s",
+             globalConfig.mysqlUserName.c_str(),
+             globalConfig.mysqlPassword == "" ? "--empty--" : "*****",
+             globalConfig.mysqlCompress ? "True" : "False");
+    log_INFO(buffer);
+    snprintf(buffer, bsize, "\tLocal MySQL Client: %s", mysql_get_client_info());
+    log_INFO(buffer);
+
+    const char *err;
+    bool st = fc::MySQLWorker::initMySQLInstance(globalConfig.mysqlAddress,
+                                                 globalConfig.mysqlUserName,
+                                                 globalConfig.mysqlPassword,
+                                                 globalConfig.mysqlDB,
+                                                 globalConfig.mysqlPort,
+                                                 globalConfig.mysqlCompress)
+                  .tryConnect(&err);
+    if (st){
+        log_INFO("\tMySQL Connection established successfully");
+    }else{
+        snprintf(buffer, bsize, "\tConnect to remote failed: %s", err);
+        log_WARNING(buffer);
+    }
+    tb::utils::releaseMemory(buffer);
+}
+
+void StartRemote(const Json::Value &v)
+{
+    if (v.isMember("remote") && v["remote"].isObject()) {
+        auto &remote = v["remote"];
+        auto &mysql = remote["mysql"];
+        if (!mysql.isNull()) {
+            getValue(address, mysql, String, globalConfig.mysqlAddress);
+            getValue(port, mysql, Int, globalConfig.mysqlPort);
+            getValue(username, mysql, String, globalConfig.mysqlUserName);
+            getValue(password, mysql, String, globalConfig.mysqlPassword);
+            getValue(enable, mysql, Bool, globalConfig.mysqlEnable);
+            getValue(compress, mysql, Bool, globalConfig.mysqlCompress);
+            getValue(db, mysql, Bool, globalConfig.mysqlDB);
+            StartMysql();
+        }
+    }
+}
+
 void StartSystem(const Json::Value &jsonRoot)
 {
     string dir = "";
@@ -215,15 +283,30 @@ void fcInit(const char *json)
     bool ok = reader->parse(buffer, buffer + size, &root, &errs);
     if (!ok) {
         //Failed to parse json file.
-        log_FATAL(errs.c_str());
+        char *buffer = tb::utils::requestMemory(1024);
+        snprintf(buffer, 1024, "Open JSON File \"%s\" failed: %s", json, errs.c_str());
+        log_FATAL(buffer);
         exit(-3);
     }
+    SystemConfig::buildDefaultSystemConfig();
     tb::barrier b(2);
     StartLog(root, &b);
+    StartRemote(root);
     StartSystem(root);
     fc::ImageProcessingStartup(root);
     tb::utils::destroyFile(buffer, size, &error);
     delete r;
+}
+
+void SystemConfig::buildDefaultSystemConfig()
+{
+    auto g = ::globalConfig;
+    g.path = g.rawPath = g.productPath = g.mysqlAddress = g.mysqlUserName = g.mysqlPassword
+        = g.mysqlDB = std::string(20, ' ');
+    g.mysqlEnable = g.useInotify = g.mysqlCompress = true;
+    g.uid = g.gid = -1;
+    g.threadCount = 1;
+
 }
 
 #ifndef PROJECT_VERSION
