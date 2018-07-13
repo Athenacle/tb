@@ -10,7 +10,7 @@
 #include "config.h"
 #endif
 
-#include <fcntl.h>
+#include <fcntl.h> // for O_RDONLY
 
 namespace tb
 {
@@ -23,6 +23,11 @@ namespace tb
         class thread_arguments;
 
     }  // namespace thread_ns
+
+    namespace db
+    {
+        class MySQLWorker;
+    }
 
     namespace utils
     {

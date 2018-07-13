@@ -2,10 +2,10 @@
 #include "fchecker.h"
 #include "image.h"
 #include "logger.h"
+#include "db.h"
 
 #include <fcntl.h>
 #include <json/json.h>
-#include <mysql/mysql.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -135,7 +135,7 @@ void StartLog(const Json::Value &doc, tb::thread_ns::barrier *b)
         }                                   \
     } while (false)
 
-void StartMysql()
+void StartMYSQL()
 {
     const int bsize = 1024;
     char *buffer = tb::utils::requestMemory(bsize);
@@ -168,7 +168,7 @@ void StartMysql()
     log_INFO(buffer);
 
     const char *err;
-    bool st = fc::MySQLWorker::initMySQLInstance(globalConfig.mysqlAddress,
+    bool st = tb::db::MySQLWorker::initMySQLInstance(globalConfig.mysqlAddress,
                                                  globalConfig.mysqlUserName,
                                                  globalConfig.mysqlPassword,
                                                  globalConfig.mysqlDB,
@@ -197,7 +197,7 @@ void StartRemote(const Json::Value &v)
             getValue(enable, mysql, Bool, globalConfig.mysqlEnable);
             getValue(compress, mysql, Bool, globalConfig.mysqlCompress);
             getValue(db, mysql, Bool, globalConfig.mysqlDB);
-            StartMysql();
+            StartMYSQL();
         }
     }
 }
