@@ -10,7 +10,7 @@
 #include "config.h"
 #endif
 
-#include <fcntl.h> // for O_RDONLY
+#include <fcntl.h>  // for O_RDONLY
 
 namespace tb
 {

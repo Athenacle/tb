@@ -1,8 +1,8 @@
 
+#include "db.h"
 #include "fchecker.h"
 #include "image.h"
 #include "logger.h"
-#include "db.h"
 
 #include <fcntl.h>
 #include <json/json.h>
@@ -168,16 +168,20 @@ void StartMYSQL()
     log_INFO(buffer);
 
     const char *err;
-    bool st = tb::db::MySQLWorker::initMySQLInstance(globalConfig.mysqlAddress,
-                                                 globalConfig.mysqlUserName,
-                                                 globalConfig.mysqlPassword,
-                                                 globalConfig.mysqlDB,
-                                                 globalConfig.mysqlPort,
-                                                 globalConfig.mysqlCompress)
-                  .tryConnect(&err);
-    if (st){
-        log_INFO("\tMySQL Connection established successfully");
-    }else{
+    auto &sql = tb::db::MySQLWorker::initMySQLInstance(globalConfig.mysqlAddress,
+                                                       globalConfig.mysqlUserName,
+                                                       globalConfig.mysqlPassword,
+                                                       globalConfig.mysqlDB,
+                                                       globalConfig.mysqlPort,
+                                                       globalConfig.mysqlCompress);
+    auto s = sql.tryConnect(&err);
+    if (s) {
+        snprintf(buffer,
+                 1024,
+                 "\tMySQL Connection established successfully. Remote Server: %s",
+                 sql.getRemoteServerInfo());
+        log_INFO(buffer);
+    } else {
         snprintf(buffer, bsize, "\tConnect to remote failed: %s", err);
         log_WARNING(buffer);
     }
@@ -196,7 +200,7 @@ void StartRemote(const Json::Value &v)
             getValue(password, mysql, String, globalConfig.mysqlPassword);
             getValue(enable, mysql, Bool, globalConfig.mysqlEnable);
             getValue(compress, mysql, Bool, globalConfig.mysqlCompress);
-            getValue(db, mysql, Bool, globalConfig.mysqlDB);
+            getValue(db, mysql, String, globalConfig.mysqlDB);
             StartMYSQL();
         }
     }
@@ -301,12 +305,11 @@ void fcInit(const char *json)
 void SystemConfig::buildDefaultSystemConfig()
 {
     auto g = ::globalConfig;
-    g.path = g.rawPath = g.productPath = g.mysqlAddress = g.mysqlUserName = g.mysqlPassword
-        = g.mysqlDB = std::string(20, ' ');
+    g.path = g.rawPath = g.productPath = g.mysqlAddress = g.mysqlUserName = g.mysqlPassword =
+        g.mysqlDB = std::string(20, ' ');
     g.mysqlEnable = g.useInotify = g.mysqlCompress = true;
     g.uid = g.gid = -1;
     g.threadCount = 1;
-
 }
 
 #ifndef PROJECT_VERSION

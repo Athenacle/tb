@@ -26,9 +26,8 @@ namespace tb
             delete MySQLWorker::instance;
         }
 
-        const char* MySQLWorker::getRemoteServerInfo(unsigned int& version)
+        const char* MySQLWorker::getRemoteServerInfo()
         {
-            version = mysql_get_server_version(_remote);
             return mysql_get_server_info(_remote);
         }
 
@@ -57,15 +56,20 @@ namespace tb
                                     addr.c_str(),
                                     user.c_str(),
                                     pass.c_str(),
-                                    db.c_str(),
+                                    nullptr,
                                     port,
                                     nullptr,
                                     mask)) {
-                errNo = mysql_errno(_remote);
-                errString = mysql_error(_remote);
+                checkDBError();
                 status = CONNECTION_FAILED;
+                return;
             } else {
                 status = CONNECTION_SUCCESS;
+            }
+            if (0 != mysql_select_db(_remote, db.c_str())) {
+                checkDBError();
+            } else {
+                status = CONNECTION_SUCCESS_DB_CHANGED;
             }
         }
 
@@ -81,7 +85,7 @@ namespace tb
             if (status == CONNECTION_NOT_REAL_CONNECT) {
                 doConnect();
             }
-            if (status == CONNECTION_FAILED) {
+            if (status != CONNECTION_SUCCESS_DB_CHANGED) {
                 *err = errString;
                 return false;
             } else {
@@ -103,5 +107,6 @@ namespace tb
             }
             return *MySQLWorker::instance;
         }
+
     }  // namespace db
 }  // namespace tb

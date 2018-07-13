@@ -368,7 +368,7 @@ namespace fc
     {
         auto* ret = new WaterMarker();
         WATER_GETVALUE(ret->id, v, id, String);
-        WATER_GETVALUE(ret->waterMarkerPath, v, image, String);
+        WATER_GETVALUE(ret->waterMarkerPath, v, waterMarkerPath, String);
         WATER_GETVALUE(ret->rotation, v, rotation, Double);
 
         WATER_GETVALUE(ret->transparent, v, transparent, Double);
