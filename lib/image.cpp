@@ -474,11 +474,10 @@ namespace fc
             return -1;
         }
         aip::get_file_content(path, &image);
-        std::map<std::string, std::string> options;
-        options["language_type"] = "CHN_ENG";
-        options["detect_direction"] = "true";
-        options["detect_language"] = "true";
-        options["probability"] = "true";
+        static const std::map<std::string, std::string> options = {{"language_type", "CHN_ENG"},
+                                                                   {"detect_direction", "true"},
+                                                                   {"detect_language", "true"},
+                                                                   {"probability", "true"}};
         result = client->general_basic(image, options);
         vstring.clear();
         if (result.isMember("error_code")) {
@@ -499,7 +498,7 @@ namespace fc
         }
         if (result.isMember("words_result") && result["words_result"].isArray()) {
             auto results = result["words_result"];
-            for (unsigned int i = 0; i < results.size(); i++) {
+            for (decltype(results.size()) i = 0; i < results.size(); i++) {
                 vstring.emplace_back(results[i]["words"].asString());
             }
         }
@@ -507,5 +506,5 @@ namespace fc
         fwriter.settings_["indentation"] = "";
         json = Json::writeString(fwriter, result);
         return vstring.size();
-    }
+    }  // namespace fc
 }  // namespace fc
