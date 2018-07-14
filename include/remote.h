@@ -7,6 +7,12 @@
 #include "threads.h"
 
 #include <mysql.h>
+
+#ifdef BUILD_WITH_LIBSSH
+#include <libssh2.h>
+#include <libssh2_sftp.h>
+#endif
+
 #include <string>
 
 namespace tb
@@ -16,15 +22,65 @@ namespace tb
         using std::string;
         using tb::thread_ns::thread;
 
+#ifdef BUILD_WITH_LIBSSH
+        class SFTPWorker
+        {
+            using SW = SFTPWorker;
+            using csr = const string&;
+
+            unsigned int ip;
+
+            string addr;
+            string user;
+            string pass;
+            string path;
+            string passphrase;
+            string remotePath;
+            unsigned int port;
+
+            unsigned int status;
+
+            bool enabled;
+
+            static SFTPWorker* instance;
+
+            int _socket;
+            LIBSSH2_SESSION* _session;
+            LIBSSH2_SFTP* _sftpsession;
+            LIBSSH2_SFTP_HANDLE* _handle;
+
+
+            int errNo;
+            char* errString;
+            const int esize = 256;
+
+            void sshConnect();
+            void sftpConnect();
+            void doConnect();
+
+            void close();
+
+            void checkSSHError()
+            {
+                errNo = libssh2_session_last_error(_session, &errString, nullptr, esize);
+            }
+
+            SFTPWorker(csr, csr, csr, csr, csr, csr, unsigned int, bool);
+            virtual ~SFTPWorker() override;
+            virtual void* start(void*, void*, void*) override;
+
+        public:
+            static SW& getSFTPInstance();
+            static SW& initSFTPInstance(csr, csr, csr, csr, csr, csr, unsigned int, bool);
+            static void destrypSFTPInstance();
+
+            const char* tryConnect();
+        };
+#endif
+
         class MySQLWorker : public thread
         {
             using csr = const string&;
-            enum {
-                CONNECTION_NOT_REAL_CONNECT = 0,
-                CONNECTION_FAILED = 1,
-                CONNECTION_SUCCESS = 2,
-                CONNECTION_SUCCESS_DB_CHANGED = 4
-            };
 
             static MySQLWorker* instance;
 
@@ -51,7 +107,7 @@ namespace tb
 
             void checkDBError()
             {
-                status = mysql_errno(_remote);
+                errNo = mysql_errno(_remote);
                 errString = mysql_error(_remote);
             }
 
@@ -66,6 +122,6 @@ namespace tb
             static void destroyMySQLInstance();
             static const char* parseVersion(unsigned int);
         };
-    }  // namespace db
+    }  // namespace remote
 }  // namespace tb
 #endif

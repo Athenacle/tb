@@ -26,6 +26,15 @@ INCLUDE(ConfigCheck)
 
 INCLUDE(FindPkgConfig)
 
+#libssh2
+PKG_SEARCH_MODULE(libssh2 REQUIRED libssh2 >= 1.7.0)
+IF(${libssh2_FOUND})
+  MESSAGE(STATUS "libssh2 Version: " ${libssh2_VERSION})
+  LIST(APPEND libList ${libssh2_LIBRARIES})
+  SET(BUILD_WITH_LIBSSH 1)
+ENDIF()
+
+#jsoncpp
 PKG_SEARCH_MODULE(jsoncpp REQUIRED jsoncpp >= 1.6.2)
 IF(${jsoncpp_FOUND})
   MESSAGE(STATUS "jsoncpp Version:" ${jsoncpp_VERSION})

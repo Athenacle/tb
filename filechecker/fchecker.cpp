@@ -288,4 +288,7 @@ int main(int argc, char* argv[])
     tb::Logger::DestoryLogger();
     fc::ImageProcessingDestroy();
     tb::remote::MySQLWorker::destroyMySQLInstance();
+#ifdef BUILD_WITH_LIBSSH
+    tb::remote::SFTPWorker::destrypSFTPInstance();
+#endif
 }

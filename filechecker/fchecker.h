@@ -49,6 +49,17 @@ public:
     string mysqlPassword;
     string mysqlDB;
 
+#ifdef BUILD_WITH_LIBSSH
+    string sftpAddress;
+    string sftpUsername;
+    string sftpPassword;
+    string sftpPassphrase;
+    string sftpIndentifyPath;
+    string sftpRemotePath;
+    bool sftpEnable;
+    int sftpPort;
+#endif
+
     static void buildDefaultSystemConfig();
 
     SystemConfig()
@@ -211,5 +222,5 @@ void StartLog(const Json::Value&, tb::thread_ns::barrier*);
 void StartSystem(const Json::Value&);
 void StartMYSQL();
 void StartRemote(const Json::Value&);
-
+void StartSFTP();
 #endif

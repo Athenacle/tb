@@ -26,8 +26,18 @@ namespace tb
 
     namespace remote
     {
+        enum {
+            CONNECTION_NOT_REAL_CONNECT = 0,
+            CONNECTION_FAILED = 1,
+            CONNECTION_SUCCESS = 2,
+            CONNECTION_SUCCESS_DB_CHANGED = 4
+        };
+
+#ifdef BUILD_WITH_LIBSSH
+        class SFTPWorker;
+#endif
         class MySQLWorker;
-    }
+    }  // namespace remote
 
     namespace utils
     {

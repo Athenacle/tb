@@ -32,6 +32,10 @@
 
 #cmakedefine UNIX_HAVE_MMAP @UNIX_HAVE_MMAP@
 
+#cmakedefine BUILD_WITH_LIBSSH @BUILD_WITH_LIBSSH@
+
+#cmakedefine BUILD_WITH_MYSQL @MYSQL_FOUND@
+
 #if defined UNIX_HAVE_SYS_MMAN && defined UNIX_HAVE_MMAP
 #define UNIX_USE_MMAP
 #endif

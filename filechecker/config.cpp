@@ -1,8 +1,8 @@
 
-#include "remote.h"
 #include "fchecker.h"
 #include "image.h"
 #include "logger.h"
+#include "remote.h"
 
 #include <fcntl.h>
 #include <json/json.h>
@@ -91,6 +91,56 @@ namespace
     }
 }  // namespace
 
+void StartSFTP()
+{
+#ifdef BUILD_WITH_LIBSSH
+    const int bsize = 1024;
+    char *buffer = tb::utils::requestMemory(bsize);
+
+    if (globalConfig.sftpPort < 0 || globalConfig.sftpPort >= 65535) {
+        snprintf(buffer,
+                 bsize,
+                 "Invalid SFTP Port Value %d, assume as defualt 22",
+                 globalConfig.sftpPort);
+        globalConfig.sftpPort = 22;
+        log_WARNING(buffer);
+    }
+
+    snprintf(buffer, bsize, "SFTP Settings");
+    log_INFO(buffer);
+    snprintf(buffer,
+             bsize,
+             "\tAddress: %s, Port: %d",
+             globalConfig.sftpAddress.c_str(),
+             globalConfig.sftpPort);
+    log_INFO(buffer);
+    snprintf(buffer,
+             bsize,
+             "\tUsername: %s, Password: %s",
+             globalConfig.sftpUsername.c_str(),
+             globalConfig.sftpPassword == "" ? "--empty--" : "*****");
+    log_INFO(buffer);
+    const char *err;
+    auto &ssh = tb::remote::SFTPWorker::initSFTPInstance(globalConfig.sftpAddress,
+                                                         globalConfig.sftpUsername,
+                                                         globalConfig.sftpPassword,
+                                                         globalConfig.sftpIndentifyPath,
+                                                         globalConfig.sftpPassphrase,
+                                                         globalConfig.sftpRemotePath,
+                                                         globalConfig.sftpPort,
+                                                         globalConfig.sftpEnable);
+    auto s = ssh.tryConnect();
+    if (s != nullptr) {
+        snprintf(buffer, 1024, "\tSFTP Channel Failed: %s", s);
+        log_ERROR(buffer);
+    } else {
+        snprintf(buffer, bsize, "\tSFTP Channel esatblished successfully.", err);
+        log_INFO(buffer);
+    }
+    tb::utils::releaseMemory(buffer);
+#endif
+}
+
 void StartLog(const Json::Value &doc, tb::thread_ns::barrier *b)
 {
     auto &log = Logger::getLogger(b);
@@ -169,11 +219,11 @@ void StartMYSQL()
 
     const char *err;
     auto &sql = tb::remote::MySQLWorker::initMySQLInstance(globalConfig.mysqlAddress,
-                                                       globalConfig.mysqlUserName,
-                                                       globalConfig.mysqlPassword,
-                                                       globalConfig.mysqlDB,
-                                                       globalConfig.mysqlPort,
-                                                       globalConfig.mysqlCompress);
+                                                           globalConfig.mysqlUserName,
+                                                           globalConfig.mysqlPassword,
+                                                           globalConfig.mysqlDB,
+                                                           globalConfig.mysqlPort,
+                                                           globalConfig.mysqlCompress);
     auto s = sql.tryConnect(&err);
     if (s) {
         snprintf(buffer,
@@ -203,6 +253,20 @@ void StartRemote(const Json::Value &v)
             getValue(db, mysql, String, globalConfig.mysqlDB);
             StartMYSQL();
         }
+#ifdef BUILD_WITH_LIBSSH
+        auto &sftp = remote["sftp"];
+        if (!mysql.isNull()) {
+            getValue(enable, sftp, Bool, globalConfig.sftpEnable);
+            getValue(address, sftp, String, globalConfig.sftpAddress);
+            getValue(port, sftp, Int, globalConfig.sftpPort);
+            getValue(username, sftp, String, globalConfig.sftpUsername);
+            getValue(password, sftp, String, globalConfig.sftpPassword);
+            getValue(identifyFile, sftp, String, globalConfig.sftpIndentifyPath);
+            getValue(remotePath, sftp, String, globalConfig.sftpRemotePath);
+            getValue(passphrase, sftp, String, globalConfig.sftpPassphrase);
+            StartSFTP();
+        }
+#endif
     }
 }
 
