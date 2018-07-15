@@ -189,12 +189,23 @@ namespace fc
             count = 1;
         }
         processCount = count;
+        queueItemNext mNext = std::bind(&MySQLTimer::addItem, &sql, std::placeholders::_1);
+        queueItemNext sNext =
+#ifdef BUILD_WITH_LIBSSH
+            std::bind(&SFTP::addItem, &sftp, std::placeholders::_1);
+#else
+            [](std::shared_ptr<Item>) {};
+#endif
         for (int i = 0; i < count; i++) {
-            processors.emplace_back(new ItemProcessor(*this));
+            processors.emplace_back(new ItemProcessor(*this, mNext, sNext));
         }
         for (auto& p : processors) {
             p->begin();
         }
+        sql.begin();
+#ifdef BUILD_WITH_LIBSSH
+        sftp.begin();
+#endif
     }
 
     Item* ItemSchedular::getItem()
@@ -208,6 +219,14 @@ namespace fc
     // ItemSchedular END
     // ItemProcessor
 
+    ItemProcessor::ItemProcessor(ItemSchedular& _sched,
+                                 queueItemNext _mysqlNext,
+                                 queueItemNext _sftpNext)
+        : thread("iprocess"), sched(_sched), mysqlNext(_mysqlNext), sftpNext(_sftpNext)
+
+    {
+    }
+
     void* ItemProcessor::start(void*, void*, void*)
     {
         do {
@@ -216,8 +235,11 @@ namespace fc
                 break;
             }
             i->processing();
-            usleep(rand() % 5000);
-            delete i;
+            usleep(rand() % 200000);
+            std::shared_ptr<Item> ni;
+            ni.reset(i);
+            mysqlNext(ni);
+            sftpNext(ni);
         } while (true);
         return nullptr;
     }
@@ -231,6 +253,12 @@ namespace fc
             thr->join();
             delete thr;
         }
+        sql.addItem(nullptr);
+        sql.join();
+#ifdef BUILD_WITH_LIBSSH
+        sftp.addItem(nullptr);
+        sftp.join();
+#endif
     }
 
     ItemSchedular& ItemSchedular::getSchedular()
@@ -241,7 +269,6 @@ namespace fc
         return *instance;
     }
 
-    ItemProcessor::ItemProcessor(ItemSchedular& s) : thread("itemProcessor"), sched(s) {}
     //ItemProcessor
     // item
 
@@ -261,13 +288,48 @@ namespace fc
     }
 
     // item
+#ifdef BUILD_WITH_LIBSSH
+    void* SFTP::start(void*, void*, void*)
+    {
+        static char buffer[1024];
+        do {
+            _cv.wait(_m, [this] { return _q.size() > 0; });
+
+            auto p = _q.front();
+            if (p == nullptr) {
+                break;
+            }
+            _q.pop();
+            _m.unlock();
+
+            const char* pname[3];
+            p->getName(pname[0], pname[1], pname[2]);
+            snprintf(buffer, 1024, "Uploading %s %s %s", pname[0], pname[1], pname[2]);
+            log_INFO(buffer);
+        } while (true);
+        _m.unlock();
+        return nullptr;
+    }
+#endif
+
+    bool MySQLTimer::processing(std::queue<std::shared_ptr<Item>>& _q)
+    {
+        log_INFO("Inserting ..... into mysql");
+        bool ret = false;
+        while (_q.size() > 0) {
+            auto p = _q.front();
+            if (p == nullptr) {
+                ret = true;
+            }
+            _q.pop();
+        }
+        return ret;
+    }
 
     void Start(FcHandler& handler)
     {
         handler.AddDirectory(globalConfig.rawPath.c_str());
     }
-
-
 }  // namespace fc
 
 
@@ -275,11 +337,11 @@ int main(int argc, char* argv[])
 {
     srand(time(nullptr));
     tb::SetThreadName("main");
-    auto& handler = fc::FcHandler::getHandler();
     if (argc > 1)
         fcInit(argv[1]);
     else
         version(argv[0]);
+    auto& handler = fc::FcHandler::getHandler();
     auto& sc = fc::ItemSchedular::getSchedular();
     sc.buildProcessor(globalConfig.threadCount);
     fc::Start(handler);

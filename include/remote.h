@@ -66,8 +66,7 @@ namespace tb
             }
 
             SFTPWorker(csr, csr, csr, csr, csr, csr, unsigned int, bool);
-            virtual ~SFTPWorker() override;
-            virtual void* start(void*, void*, void*) override;
+            ~SFTPWorker() ;
 
         public:
             static SW& getSFTPInstance();
@@ -117,7 +116,7 @@ namespace tb
             const char* getRemoteServerInfo();
             bool tryConnect(const char**);
             const char* getErrorString() const;
-            MySQLWorker* getMySQLInstance();
+            static MySQLWorker& getMySQLInstance();
             static MySQLWorker& initMySQLInstance(csr, csr, csr, csr, unsigned int, bool);
             static void destroyMySQLInstance();
             static const char* parseVersion(unsigned int);

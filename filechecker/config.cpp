@@ -120,7 +120,6 @@ void StartSFTP()
              globalConfig.sftpUsername.c_str(),
              globalConfig.sftpPassword == "" ? "--empty--" : "*****");
     log_INFO(buffer);
-    const char *err;
     auto &ssh = tb::remote::SFTPWorker::initSFTPInstance(globalConfig.sftpAddress,
                                                          globalConfig.sftpUsername,
                                                          globalConfig.sftpPassword,
@@ -134,7 +133,7 @@ void StartSFTP()
         snprintf(buffer, 1024, "\tSFTP Channel Failed: %s", s);
         log_ERROR(buffer);
     } else {
-        snprintf(buffer, bsize, "\tSFTP Channel esatblished successfully.", err);
+        snprintf(buffer, bsize, "\tSFTP Channel esatblished successfully.");
         log_INFO(buffer);
     }
     tb::utils::releaseMemory(buffer);

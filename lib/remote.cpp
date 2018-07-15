@@ -3,6 +3,8 @@
 #include "logger.h"
 #include "taobao.h"
 
+#include <cassert>
+
 #ifdef BUILD_WITH_LIBSSH
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -12,10 +14,10 @@
 #include <unistd.h>
 #endif
 
-#include <cassert>
 
 namespace tb
 {
+#ifdef BUILD_WITH_LIBSSH
     namespace
     {
         int string2ip(const string& _ip, void* _buf)
@@ -23,6 +25,7 @@ namespace tb
             return inet_pton(AF_INET, _ip.c_str(), _buf);
         }
     };  // namespace
+#endif
 
     namespace remote
     {
@@ -100,10 +103,6 @@ namespace tb
             ::close(_socket);
         }
 
-        void* SFTPWorker::start(void*, void*, void*)
-        {
-            return nullptr;
-        }
 
         SFTPWorker::~SFTPWorker() {}
 
@@ -245,6 +244,11 @@ namespace tb
 
 #endif
 
+        MySQLWorker& MySQLWorker::getMySQLInstance()
+        {
+            assert(MySQLWorker::instance != nullptr);
+            return *MySQLWorker::instance;
+        }
 
         void MySQLWorker::close()
         {

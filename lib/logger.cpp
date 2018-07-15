@@ -31,7 +31,8 @@ namespace
             struct tm* gmt = gmtime(&spec.tv_sec);
             lastEndOfTime = &buf[strftime(buf, timeBuffSize, timeFormat, gmt)];
         }
-        snprintf(lastEndOfTime, timeBuffSize - (lastEndOfTime - &buf[0]), ":%-9ld", spec.tv_nsec);
+        snprintf(
+            lastEndOfTime, timeBuffSize - (lastEndOfTime - &buf[0]), ":%0*ld", 9, spec.tv_nsec);
         return buf;
     }
 }  // namespace

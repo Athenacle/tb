@@ -4,6 +4,7 @@
 #define FCHECKER_H
 
 #include "image.h"
+#include "remote.h"
 #include "taobao.h"
 #include "threads.h"
 
@@ -140,6 +141,12 @@ namespace fc
         int price;
 
     public:
+        void getName(const char*& p1, const char*& p2, const char*& p3)
+        {
+            p1 = PIC_1;
+            p2 = PIC_2;
+            p3 = PIC_3;
+        }
         int processing();
         Item(const char*, const char*, const char*);
         ~Item()
@@ -147,6 +154,60 @@ namespace fc
             releaseMemory(PIC_1);
             releaseMemory(PIC_2);
             releaseMemory(PIC_3);
+            log_INFO("~Item");
+        }
+    };
+
+    using queueItemNext = std::function<void(std::shared_ptr<Item>)>;
+
+    class ItemRemoteTimer : public thread
+    {
+        using fn = std::function<bool(Item*)>;
+        virtual void* start(void*, void*, void*) override
+        {
+            do {
+                sleep(_int);
+                _m.lock();
+                auto r = processing(_q);
+                _m.unlock();
+                if (r) {
+                    break;
+                }
+            } while (true);
+            return nullptr;
+        }
+
+
+        unsigned int _int;
+
+    protected:
+        std::queue<std::shared_ptr<Item>> _q;
+        mutex _m;
+
+        using queueType = decltype(_q);
+        virtual bool processing(queueType&) = 0;
+        ItemRemoteTimer(int _i, const char* n) : thread(n), _int(_i) {}
+
+    public:
+        void addItem(std::shared_ptr<Item> _i)
+        {
+            _m.lock();
+            _q.emplace(_i);
+            _m.unlock();
+        }
+    };
+
+    class MySQLTimer : public ItemRemoteTimer
+    {
+        using sql = tb::remote::MySQLWorker;
+
+        sql& instance;
+        virtual bool processing(queueType&) override;
+
+    public:
+        MySQLTimer()
+            : ItemRemoteTimer(5, "mysql"), instance(tb::remote::MySQLWorker::getMySQLInstance())
+        {
         }
     };
 
@@ -156,6 +217,30 @@ namespace fc
 
     class ItemSchedular;
     class ItemProcessor;
+#ifdef BUILD_WITH_LIBSSH
+    class SFTP : public thread
+    {
+        std::queue<std::shared_ptr<Item>> _q;
+        using queueType = decltype(_q);
+
+        mutex _m;
+        condition_variable _cv;
+
+        tb::remote::SFTPWorker& sftp;
+        virtual void* start(void*, void*, void*);
+
+    public:
+        SFTP() : thread("sftp"), sftp(tb::remote::SFTPWorker::getSFTPInstance()) {}
+
+        void addItem(std::shared_ptr<Item> _i)
+        {
+            _m.lock();
+            _q.emplace(_i);
+            _cv.notify_all();
+            _m.unlock();
+        }
+    };
+#endif
 
     class ItemSchedular
     {
@@ -165,6 +250,11 @@ namespace fc
         condition_variable _cv;
         int processCount;
         std::vector<ItemProcessor*> processors;
+
+        MySQLTimer sql;
+#ifdef BUILD_WITH_LIBSSH
+        SFTP sftp;
+#endif
 
         static ItemSchedular* instance;
         ItemSchedular();
@@ -180,10 +270,12 @@ namespace fc
     class ItemProcessor : public tb::thread_ns::thread
     {
         ItemSchedular& sched;
+        queueItemNext mysqlNext;
+        queueItemNext sftpNext;
 
     public:
         virtual ~ItemProcessor(){};
-        ItemProcessor(ItemSchedular&);
+        ItemProcessor(ItemSchedular&, queueItemNext, queueItemNext);
         virtual void* start(void* = nullptr, void* = nullptr, void* = nullptr) override;
     };
 
@@ -209,8 +301,6 @@ namespace fc
     };
 
     void Start(FcHandler&);
-
-
 }  // namespace fc
 
 
