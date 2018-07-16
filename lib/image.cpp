@@ -139,12 +139,31 @@ namespace fc
         imageMat = cv::imread(filename, mask);
     }
 
-    Image::Image(const char* _fname) : BaseImage(_fname) {}
+    void BaseImage::resize(double t)
+    {
+        cv::resize(imageMat, imageMat, cv::Size(t * imageMat.cols, t * imageMat.rows));
+    }
 
+    void BaseImage::rotateScale(const cv::Point& center, double rotation, double scale)
+    {
+        //     constexpr double pi = std::acos(-1);
+        //     auto matrix = getRotationMatrix2D(center, - rotation, scale);
+        //     auto x = imageMat.cols - center.x;
+        //     auto y = imageMat.rows-center.y;
+        //     auto r = std::sqrt(x * x + y * y);
+        //     auto radix = rotation * pi / 180 + pi / 4;
+        //     auto xx = std::abs(r * cos(radix));
+        //     auto yy = std::abs(r * sin(radix));
+        //     auto actual = std::max(xx,yy) * 2;
+        //     cv::warpAffine(imageMat, imageMat, matrix, cv::Size(actual, actual));
+    }
+
+    Image::Image(const char* _fname) : BaseImage(_fname), success(true) {}
 
     int Image::getItemCode(std::string& fcode, std::string& bcode, int& price)
     {
         cv::Rect rect;
+        price = 0;
         int ret = opencvFindBarCodeROI(imageMat, rect);
         if (ret == -1) {
             return 0;
@@ -267,21 +286,20 @@ namespace fc
         anchor = ANCHOR_TOP | ANCHOR_LEFT;
         xOffset = 0;
         yOffset = 1;
-        waterMarker = waterMarkerMask = nullptr;
+        waterMarker = nullptr;
     }
 
-#define WATER_GETVALUE(destValue, parent, key, Type)            \
-    do {                                                        \
-        if (parent.isMember(#key) && parent[#key].is##Type()) { \
-            destValue = parent[#key].as##Type();                \
-        }                                                       \
-    } while (0);
 
     bool WaterMarker::CheckWaterMarker(char* buffer, size_t bsize)
     {
         auto t = transparent;
         auto r = rotation;
         auto re = repeat;
+        if (resize < 0) {
+            snprintf(buffer, bsize, "Resize get negtative value %lf, assume as 1", resize);
+            log_WARNING(buffer);
+            resize = 1;
+        }
         if (waterMarkerPath == "") {
             snprintf(buffer,
                      bsize,
@@ -296,7 +314,6 @@ namespace fc
                 return false;
             }
             this->waterMarker = new BaseImage(waterMarkerPath.c_str());
-            this->waterMarkerMask = new BaseImage(waterMarkerPath.c_str(), cv::IMREAD_GRAYSCALE);
         }
         if (r < 0) {
             double rr = 360 - std::fmod(rotation, 360);
@@ -342,6 +359,21 @@ namespace fc
                  id == "" ? "" : id.c_str(),
                  waterMarkerPath.c_str());
         log_INFO(buffer);
+        if (position == "top-left") {
+            anchor = ANCHOR_TOP | ANCHOR_LEFT;
+        } else if (position == "top-right") {
+            anchor = ANCHOR_TOP | ANCHOR_RIGHT;
+        } else if (position == "bottom-left") {
+            anchor = ANCHOR_BOTTOM | ANCHOR_LEFT;
+        } else if (position == "bottom-right") {
+            anchor = ANCHOR_BOTTOM | ANCHOR_RIGHT;
+        } else {
+            snprintf(
+                buffer, bsize, "Unknown position %s, assume as defulat top-left", position.c_str());
+            log_WARNING(buffer);
+            position = "top-left";
+            anchor = ANCHOR_TOP | ANCHOR_LEFT;
+        }
         snprintf(
             buffer,
             bsize,
@@ -353,6 +385,8 @@ namespace fc
             xOffset,
             yOffset);
         log_INFO(buffer);
+
+        waterMarker->resize(resize);
         return true;
     }
 
@@ -360,28 +394,41 @@ namespace fc
     {
         if (waterMarker != nullptr)
             delete waterMarker;
-        if (waterMarkerMask != nullptr)
-            delete waterMarkerMask;
     }
+
+#define WATER_GETVALUE(destValue, parent, key, Type, def)       \
+    do {                                                        \
+        if (parent.isMember(#key) && parent[#key].is##Type()) { \
+            ret->destValue = parent[#key].as##Type();           \
+        } else {                                                \
+            ret->destValue = def;                               \
+        }                                                       \
+    } while (0);
 
     WaterMarker* WaterMarker::BuildWaterMarker(const Json::Value& v, char* buffer, size_t bsize)
     {
         auto* ret = new WaterMarker();
-        WATER_GETVALUE(ret->id, v, id, String);
-        WATER_GETVALUE(ret->waterMarkerPath, v, waterMarkerPath, String);
-        WATER_GETVALUE(ret->rotation, v, rotation, Double);
-
-        WATER_GETVALUE(ret->transparent, v, transparent, Double);
-        WATER_GETVALUE(ret->repeat, v, repeat, Double);
+        WATER_GETVALUE(id, v, id, String, "");
+        WATER_GETVALUE(waterMarkerPath, v, waterMarkerPath, String, "");
+        WATER_GETVALUE(rotation, v, rotation, Double, 0);
+        WATER_GETVALUE(resize, v, resize, Double, 1);
+        WATER_GETVALUE(transparent, v, transparent, Double, 1);
+        WATER_GETVALUE(repeat, v, repeat, Double, 1);
         auto pos = v["position"];
         if (pos.isObject()) {
-            WATER_GETVALUE(ret->position, pos, anchor, String);
-            WATER_GETVALUE(ret->xOffset, pos, x, Double);
-            WATER_GETVALUE(ret->yOffset, pos, y, Double);
+            WATER_GETVALUE(position, pos, anchor, String, "top-left");
+            WATER_GETVALUE(xOffset, pos, x, Double, 0);
+            WATER_GETVALUE(yOffset, pos, y, Double, 0);
         }
         bool status = ret->CheckWaterMarker(buffer, bsize);
-        return status ? ret : nullptr;
+        if (status) {
+            return ret;
+        } else {
+            delete ret;
+            return nullptr;
+        }
     }
+#undef WATER_GETVALUE
 
     int ImageProcessingDestroy()
     {
@@ -425,7 +472,7 @@ namespace fc
         if (image.isMember("ocr")) {
             auto ocr = image["ocr"];
             if (ocr.isObject() && ocr.isMember("BaiduOCR")) {
-                auto baiduOCR = ocr["ocr"];
+                auto baiduOCR = ocr["BaiduOCR"];
                 bool enable = false;
                 string aid, akey, skey;
                 aid = akey = skey;
@@ -505,6 +552,68 @@ namespace fc
         Json::StreamWriterBuilder fwriter;
         fwriter.settings_["indentation"] = "";
         json = Json::writeString(fwriter, result);
+        std::cout << json;
         return vstring.size();
     }  // namespace fc
+
+    const std::vector<WaterMarker*>& WaterMarker::getMarkers()
+    {
+        return WaterMarker::markers;
+    }
+
+    int Image::AddWaterPrint()
+    {
+        auto& m = WaterMarker::getMarkers();
+        for (auto wm : m) {
+            success = success && addWaterMarker(*wm);
+        }
+        return m.size();
+    }
+
+    namespace
+    {
+        void calc(
+            cv::Rect& roi, int bh, int bw, int wcol, int wrow, unsigned int anchor, int x, int y)
+        {
+            roi = cv::Rect(0, 0, wcol, wrow);
+        }
+
+    }  // namespace
+
+    bool Image::addWaterMarker(const WaterMarker& wm)
+    {
+        int baseHeight = imageMat.rows;
+        int baseWidth = imageMat.cols;
+
+        auto& markerMAT = wm.waterMarker->getMat();
+
+
+        int wmRow = markerMAT.rows;
+        int wmCol = markerMAT.cols;
+
+        cv::Rect wmPos;
+        calc(wmPos, baseHeight, baseWidth, wmCol, wmRow, wm.anchor, wm.xOffset, wm.yOffset);
+
+        if ((wmPos.x + wmPos.width) > imageMat.cols || (wmPos.y + wmPos.height) > imageMat.rows) {
+            const size_t bsize = 1024;
+            char* buffer = tb::utils::requestMemory(bsize);
+            snprintf(buffer,
+                     bsize,
+                     "Invalid WaterMarker Size: (x:%d, y: %d, w: %d, h: %d) with Image Size(w: %d, "
+                     "h: %d)",
+                     wmPos.x,
+                     wmPos.y,
+                     wmPos.width,
+                     wmPos.height,
+                     imageMat.cols,
+                     imageMat.rows);
+            log_WARNING(buffer);
+            tb::utils::releaseMemory(buffer);
+            return false;
+        }
+
+        Mat imgROI = imageMat(wmPos);
+        cv::addWeighted(imgROI, 1.0, markerMAT, wm.transparent, 0, imgROI);
+        return true;
+    }
 }  // namespace fc

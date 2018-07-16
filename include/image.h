@@ -62,6 +62,10 @@ namespace fc
     using tb::thread_ns::mutex;
     using tb::thread_ns::thread;
 
+    class BaseImage;
+    class Image;
+    class WaterMarker;
+
     class BaseImage
     {
     protected:
@@ -72,11 +76,20 @@ namespace fc
         BaseImage(const char* filename, unsigned int mask = cv::IMREAD_COLOR);
         bool valid() const;
         virtual ~BaseImage() {}
+        const Mat& getMat() const
+        {
+            return imageMat;
+        }
+        void resize(double);
+        void rotateScale(const cv::Point&, double, double);
     };
 
     class Image : public BaseImage
     {
         friend int ImageProcessingStartup(const Json::Value&);
+
+        bool success;
+        bool addWaterMarker(const WaterMarker&);
 
     public:
         Image(const char*);
@@ -93,6 +106,7 @@ namespace fc
     {
         friend int ImageProcessingStartup(const Json::Value&);
         friend int ImageProcessingDestroy();
+        friend class Image;
 
         static std::vector<WaterMarker*> markers;
 
@@ -101,19 +115,20 @@ namespace fc
         string position;
         double rotation;
         double transparent;
+        double resize;
         int repeat;
         unsigned int anchor;
         int xOffset;
         int yOffset;
 
         BaseImage* waterMarker;
-        BaseImage* waterMarkerMask;
 
         bool CheckWaterMarker(char*, size_t);
 
     public:
         ~WaterMarker();
         WaterMarker();
+        static const std::vector<WaterMarker*>& getMarkers();
         static WaterMarker* BuildWaterMarker(const Json::Value&, char*, size_t);
     };
 
