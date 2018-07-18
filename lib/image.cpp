@@ -286,7 +286,7 @@ namespace fc
         anchor = ANCHOR_TOP | ANCHOR_LEFT;
         xOffset = 0;
         yOffset = 1;
-        waterMarker = nullptr;
+        waterMarkerMask = waterMarker = nullptr;
     }
 
 
@@ -314,6 +314,7 @@ namespace fc
                 return false;
             }
             this->waterMarker = new BaseImage(waterMarkerPath.c_str());
+            this->waterMarkerMask = new BaseImage(waterMarkerPath.c_str(), cv::IMREAD_GRAYSCALE);
         }
         if (r < 0) {
             double rr = 360 - std::fmod(rotation, 360);
@@ -575,7 +576,21 @@ namespace fc
         void calc(
             cv::Rect& roi, int bh, int bw, int wcol, int wrow, unsigned int anchor, int x, int y)
         {
-            roi = cv::Rect(0, 0, wcol, wrow);
+            int roiX, roiY;
+            if ((anchor & ANCHOR_TOP) == ANCHOR_TOP) {
+                roiY = y;
+            }
+            if ((anchor & ANCHOR_BOTTOM) == ANCHOR_BOTTOM) {
+                roiY = bh - y - wrow;
+            }
+
+            if ((anchor & ANCHOR_LEFT) == ANCHOR_LEFT) {
+                roiX = x;
+            }
+            if ((anchor & ANCHOR_RIGHT) == ANCHOR_RIGHT) {
+                roiX = bw - x - wcol;
+            }
+            roi = cv::Rect(roiX, roiY, wcol, wrow);
         }
 
     }  // namespace
@@ -586,7 +601,7 @@ namespace fc
         int baseWidth = imageMat.cols;
 
         auto& markerMAT = wm.waterMarker->getMat();
-
+        auto& maskMAT = wm.waterMarkerMask->getMat();
 
         int wmRow = markerMAT.rows;
         int wmCol = markerMAT.cols;
@@ -613,7 +628,13 @@ namespace fc
         }
 
         Mat imgROI = imageMat(wmPos);
-        cv::addWeighted(imgROI, 1.0, markerMAT, wm.transparent, 0, imgROI);
+        if (wm.transparent != 1) {
+            cv::addWeighted(imgROI, 1.0, markerMAT, wm.transparent, 0, imgROI);
+        } else {
+            markerMAT.copyTo(imgROI, maskMAT);
+        }
+        std::cout << "aaaaa";
+        SHOW(imageMat);
         return true;
     }
 }  // namespace fc

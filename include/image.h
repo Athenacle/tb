@@ -122,6 +122,7 @@ namespace fc
         int yOffset;
 
         BaseImage* waterMarker;
+        BaseImage* waterMarkerMask;
 
         bool CheckWaterMarker(char*, size_t);
 
