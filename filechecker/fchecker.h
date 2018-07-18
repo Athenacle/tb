@@ -242,6 +242,10 @@ namespace fc
     };
 #endif
 
+    class ItemSchedular;
+    class OcrHandlerQueue;
+    class ItemProcessor;
+
     class ItemSchedular
     {
         std::queue<Item*> items;
@@ -250,6 +254,7 @@ namespace fc
         condition_variable _cv;
         int processCount;
         std::vector<ItemProcessor*> processors;
+        OcrHandlerQueue* ocr;
 
         MySQLTimer sql;
 #ifdef BUILD_WITH_LIBSSH
@@ -260,22 +265,41 @@ namespace fc
         ItemSchedular();
 
     public:
+        ~ItemSchedular();
         static ItemSchedular& getSchedular();
+        static void destroyItemSchedular();
         void buildProcessor(int = 1);
         void stopSchedular();
         int addItem(Item*);
         Item* getItem();
     };
 
+
+    class OcrHandlerQueue : public tb::thread_ns::thread
+    {
+        ItemSchedular& sched;
+        queueItemNext mysql;
+        queueItemNext sftp;
+        std::queue<Item*> _q;
+        mutex _m;
+        condition_variable _cv;
+
+    public:
+        OcrHandlerQueue(ItemSchedular&, queueItemNext, queueItemNext);
+        virtual ~OcrHandlerQueue();
+        virtual void* start(void* = nullptr, void* = nullptr, void* = nullptr) override;
+        void addItem(Item*);
+    };
+
     class ItemProcessor : public tb::thread_ns::thread
     {
         ItemSchedular& sched;
         queueItemNext mysqlNext;
-        queueItemNext sftpNext;
+        OcrHandlerQueue& ocr;
 
     public:
         virtual ~ItemProcessor(){};
-        ItemProcessor(ItemSchedular&, queueItemNext, queueItemNext);
+        ItemProcessor(ItemSchedular&, OcrHandlerQueue&);
         virtual void* start(void* = nullptr, void* = nullptr, void* = nullptr) override;
     };
 

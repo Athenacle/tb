@@ -171,7 +171,17 @@ namespace fc
 
     // ItemSchedular
 
+    void ItemSchedular::destroyItemSchedular()
+    {
+        delete instance;
+    }
+
     ItemSchedular::ItemSchedular() {}
+
+    ItemSchedular::~ItemSchedular()
+    {
+        delete ocr;
+    }
 
     int ItemSchedular::addItem(Item* i)
     {
@@ -196,12 +206,15 @@ namespace fc
 #else
             [](std::shared_ptr<Item>) {};
 #endif
+
+        ocr = new OcrHandlerQueue(*this, mNext, sNext);
         for (int i = 0; i < count; i++) {
-            processors.emplace_back(new ItemProcessor(*this, mNext, sNext));
+            processors.emplace_back(new ItemProcessor(*this, *ocr));
         }
         for (auto& p : processors) {
             p->begin();
         }
+        ocr->begin();
         sql.begin();
 #ifdef BUILD_WITH_LIBSSH
         sftp.begin();
@@ -219,10 +232,8 @@ namespace fc
     // ItemSchedular END
     // ItemProcessor
 
-    ItemProcessor::ItemProcessor(ItemSchedular& _sched,
-                                 queueItemNext _mysqlNext,
-                                 queueItemNext _sftpNext)
-        : thread("iprocess"), sched(_sched), mysqlNext(_mysqlNext), sftpNext(_sftpNext)
+    ItemProcessor::ItemProcessor(ItemSchedular& _sched, OcrHandlerQueue& _ocr)
+        : thread("iprocess"), sched(_sched), ocr(_ocr)
 
     {
     }
@@ -236,10 +247,7 @@ namespace fc
             }
             i->processing();
             usleep(rand() % 200000);
-            std::shared_ptr<Item> ni;
-            ni.reset(i);
-            mysqlNext(ni);
-            sftpNext(ni);
+            ocr.addItem(i);
         } while (true);
         return nullptr;
     }
@@ -253,12 +261,14 @@ namespace fc
             thr->join();
             delete thr;
         }
-        sql.addItem(nullptr);
-        sql.join();
 #ifdef BUILD_WITH_LIBSSH
         sftp.addItem(nullptr);
         sftp.join();
 #endif
+        ocr->addItem(nullptr);
+        ocr->join();
+        sql.addItem(nullptr);
+        sql.join();
     }
 
     ItemSchedular& ItemSchedular::getSchedular()
@@ -326,6 +336,42 @@ namespace fc
         return ret;
     }
 
+    OcrHandlerQueue::~OcrHandlerQueue() {}
+
+    void OcrHandlerQueue::addItem(Item* i)
+    {
+        _m.lock();
+        _q.emplace(i);
+        _cv.notify_all();
+        _m.unlock();
+    }
+
+    void* OcrHandlerQueue::start(void*, void*, void*)
+    {
+        do {
+            _cv.wait(_m, [this] { return _q.size() > 0; });
+            auto i = _q.front();
+            _q.pop();
+            _m.unlock();
+            if (i == nullptr) {
+                return nullptr;
+            }
+            i->processing();
+            std::shared_ptr<Item> iptr;
+            iptr.reset(i);
+            mysql(iptr);
+            sftp(iptr);
+        } while (true);
+    }
+
+    OcrHandlerQueue::OcrHandlerQueue(ItemSchedular& _sched,
+                                     queueItemNext sqlnext,
+                                     queueItemNext sshnext)
+        : thread("ocr"), sched(_sched), mysql(sqlnext), sftp(sshnext)
+    {
+    }
+
+
     void Start(FcHandler& handler)
     {
         handler.AddDirectory(globalConfig.rawPath.c_str());
@@ -353,4 +399,5 @@ int main(int argc, char* argv[])
 #ifdef BUILD_WITH_LIBSSH
     tb::remote::SFTPWorker::destrypSFTPInstance();
 #endif
+    fc::ItemSchedular::destroyItemSchedular();
 }
