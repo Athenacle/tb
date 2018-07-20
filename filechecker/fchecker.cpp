@@ -20,21 +20,30 @@ namespace
     {
         int ret = 0;
         bool matchNumber = false;
-        while (*s) {
-            if (*s == '.') {
+
+        const char* end = s;
+        for (; *end; end++)
+            ;
+
+        for (; end > s && *end != '/'; end--)
+            ;
+
+        end++;
+        while (*end) {
+            if (*end == '.') {
                 break;
             }
-            if (isdigit(*s)) {
+            if (isdigit(*end)) {
                 matchNumber = true;
-                ret = ret * 10 + *s - '0';
-            } else if ((*s == '-' || *s == '_' || isalpha(*s)) && matchNumber) {
+                ret = ret * 10 + *end - '0';
+            } else if ((*end == '-' || *end == '_' || isalpha(*end)) && matchNumber) {
                 char* buf = requestMemory(strlen(s) + 32);
                 sprintf(buf, "Parse FileNumber of %s Failed", s);
                 log_ERROR(buf);
                 releaseMemory(buf);
                 return -1;
             }
-            s++;
+            end++;
         }
         return ret;
     }
@@ -135,7 +144,7 @@ namespace fc
             releaseMemory(buffer);
         } else {
             std::sort(IMGs.begin(), IMGs.end(), [&](auto& a, auto& b) {
-                return std::get<NUMBER>(a) - std::get<NUMBER>(b);
+                return (std::get<NUMBER>(a) - std::get<NUMBER>(b)) <= 0;
             });
             for (vector<imgType>::size_type i = 0; i < IMGs.size();) {
                 auto p1 = IMGs[i];
