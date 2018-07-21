@@ -650,7 +650,6 @@ namespace fc
         } else {
             markerMAT.copyTo(imgROI, maskMAT);
         }
-        SHOW(imageMat);
         return true;
     }
 }  // namespace fc

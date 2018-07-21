@@ -291,18 +291,58 @@ namespace fc
     //ItemProcessor
     // item
 
-    Item::Item(const char* _p1, const char* _p2, const char* _p3)
-        : PIC_1(stringDUP(_p1)), PIC_2(stringDUP(_p2)), PIC_3(stringDUP(_p3))
+    void Item::getCode(string& fc, string& bc, int& price)
     {
+        std::swap(fc, fcode);
+        std::swap(bc, bcode);
+        price = this->price;
+    }
+
+    void Item::getOcrJson(string& json)
+    {
+        json = string(ocr.dumpJson());
+    }
+
+    Item::Item(const char* _p1, const char* _p2, const char* _p3)
+        : PIC_1(stringDUP(_p1)),
+          PIC_2(stringDUP(_p2)),
+          PIC_3(stringDUP(_p3)),
+          front(PIC_1),
+          back(PIC_2),
+          board(PIC_3)
+    {
+    }
+
+    Item::~Item()
+    {
+        front.WriteToFile();
+        back.WriteToFile();
+        board.WriteToFile();
+        releaseMemory(PIC_1);
+        releaseMemory(PIC_2);
+        releaseMemory(PIC_3);
+    }
+
+    int Item::processingOCR()
+    {
+        static char buffer[1024];
+        int ret = board.getItemCode(fcode, bcode, price, ocr);
+        snprintf(buffer,
+                 1024,
+                 "Get Item Metadata: %s %s %s %d",
+                 PIC_3,
+                 fcode.c_str(),
+                 bcode.c_str(),
+                 price);
+        log_INFO(buffer);
+        return ret;
     }
 
     int Item::processing()
     {
-        char* buf = requestMemory(1024);
-        sprintf(
-            buf, "Processing Item: %s %s %s, at thread %lx ", PIC_1, PIC_2, PIC_3, pthread_self());
-        log_INFO(buf);
-        releaseMemory(buf);
+        front.AddWaterPrint();
+        back.AddWaterPrint();
+        board.AddWaterPrint();
         return 0;
     }
 
@@ -335,13 +375,49 @@ namespace fc
     {
         log_INFO("Inserting ..... into mysql");
         bool ret = false;
+        instance.beginTransation();
+        const size_t bsize = 2048;
+        static char buffer[bsize];
         while (_q.size() > 0) {
-            auto p = _q.front();
-            if (p == nullptr) {
-                ret = true;
+            string sql =
+                "INSERT INTO `Clothes` (`BarCode`, `FullCode`, `FrontPath`, `BackPath`, "
+                "`BoardPath`, `BoardPrice`, `OcrResult`) VALUES ";
+
+            int i = 0;
+            do {
+                auto p = _q.front();
+                _q.pop();
+                if (p == nullptr) {
+                    ret = true;
+                    break;
+                }
+                const char* pic[3];
+                string barcode, fullcode;
+                int price;
+                string json;
+                p->getName(pic[0], pic[1], pic[2]);
+                p->getOcrJson(json);
+                p->getCode(barcode, fullcode, price);
+                snprintf(buffer,
+                         bsize,
+                         "('%s', '%s', '%s', '%s','%s', %d, '%s')",
+                         barcode.c_str(),
+                         fullcode.c_str(),
+                         pic[0],
+                         pic[1],
+                         pic[2],
+                         price,
+                         json.c_str());
+                sql = sql + buffer + ",";
+                i++;
+            } while (i < 10 && _q.size() > 0);
+            if (i > 0) {
+                auto last = sql.find_last_of(',');
+                sql.at(last) = ';';
+                instance.query(sql.c_str());
             }
-            _q.pop();
         }
+        instance.commit();
         return ret;
     }
 
@@ -365,11 +441,26 @@ namespace fc
             if (i == nullptr) {
                 return nullptr;
             }
-            i->processing();
-            std::shared_ptr<Item> iptr;
-            iptr.reset(i);
-            mysql(iptr);
-            sftp(iptr);
+            int status = i->processingOCR();
+            if ((status & OCR_OK) == OCR_OK) {
+                std::shared_ptr<Item> iptr;
+                iptr.reset(i);
+                mysql(iptr);
+                sftp(iptr);
+            } else if (i->getFailed() < 10) {
+                i->ocrFailed();
+                this->addItem(i);
+            } else {
+                size_t bsize = 512;
+                char* buf = requestMemory(bsize);
+                snprintf(buf,
+                         bsize,
+                         "Get Ocr Result of file %s failed 10 times. Skip this file.",
+                         i->getBoardName());
+                log_WARNING(buf);
+                releaseMemory(buf);
+                delete i;
+            }
         } while (true);
     }
 

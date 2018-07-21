@@ -66,7 +66,7 @@ namespace tb
             }
 
             SFTPWorker(csr, csr, csr, csr, csr, csr, unsigned int, bool);
-            ~SFTPWorker() ;
+            ~SFTPWorker();
 
         public:
             static SW& getSFTPInstance();
@@ -80,6 +80,10 @@ namespace tb
         class MySQLWorker : public thread
         {
             using csr = const string&;
+
+            static const int AUTO_COMMIT_TRUE = 1;
+            static const int AUTO_COMMIT_FALSE = 0;
+
 
             static MySQLWorker* instance;
 
@@ -112,6 +116,10 @@ namespace tb
 
         public:
             virtual void* start(void*, void*, void*) override;
+
+            void beginTransation();
+            void commit();
+            int query(const char*);
 
             const char* getRemoteServerInfo();
             bool tryConnect(const char**);

@@ -145,6 +145,10 @@ namespace fc
         string json;
         std::vector<string> words;
 
+        const string& getJson()
+        {
+            return json;
+        }
         char* dumpJson() const;
         bool getFullCode(string&) const;
         bool getBarCode(string&) const;

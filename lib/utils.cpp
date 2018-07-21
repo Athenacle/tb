@@ -50,9 +50,9 @@ namespace tb
 
         void releaseMemory(const void* _ptr)
         {
-        //     if (_ptr != nullptr) {
-        //         __pool->ordered_free(const_cast<void*>(_ptr));
-        //     }
+            //     if (_ptr != nullptr) {
+            //         __pool->ordered_free(const_cast<void*>(_ptr));
+            //     }
             free((void*)_ptr);
         }
 
@@ -86,7 +86,7 @@ namespace tb
             length = bptr->length;
             *_out = requestMemory(bptr->length + 1);
             std::memcpy(*_out, bptr->data, bptr->length);
-            *_out[length] = 0;
+            (*_out)[length] = 0;
             BIO_free_all(b64);
 
             return length;

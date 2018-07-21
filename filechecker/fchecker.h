@@ -136,11 +136,38 @@ namespace fc
         const char* PIC_2;
         const char* PIC_3;
 
+        Image front;
+        Image back;
+        Image board;
+
+        OcrResult ocr;
+
         std::string bcode;
         std::string fcode;
         int price;
+        int ocrfailed;
 
     public:
+        void ocrFailed()
+        {
+            this->ocrfailed++;
+        }
+        int getFailed() const
+        {
+            return this->ocrfailed;
+        }
+
+        int processingOCR();
+
+        void getCode(string&, string&, int&);
+
+        void getOcrJson(string&);
+
+        const char* getBoardName() const
+        {
+            return PIC_3;
+        }
+
         void getName(const char*& p1, const char*& p2, const char*& p3)
         {
             p1 = PIC_1;
@@ -149,13 +176,7 @@ namespace fc
         }
         int processing();
         Item(const char*, const char*, const char*);
-        ~Item()
-        {
-            releaseMemory(PIC_1);
-            releaseMemory(PIC_2);
-            releaseMemory(PIC_3);
-            log_INFO("~Item");
-        }
+        ~Item();
     };
 
     using queueItemNext = std::function<void(std::shared_ptr<Item>)>;
@@ -163,13 +184,18 @@ namespace fc
     class ItemRemoteTimer : public thread
     {
         using fn = std::function<bool(Item*)>;
+
+        using qsi = std::queue<std::shared_ptr<Item>>;
+
         virtual void* start(void*, void*, void*) override
         {
+            static qsi qu;
             do {
                 sleep(_int);
                 _m.lock();
-                auto r = processing(_q);
+                std::swap(qu, _q);
                 _m.unlock();
+                auto r = processing(qu);
                 if (r) {
                     break;
                 }
@@ -206,7 +232,7 @@ namespace fc
 
     public:
         MySQLTimer()
-            : ItemRemoteTimer(5, "mysql"), instance(tb::remote::MySQLWorker::getMySQLInstance())
+            : ItemRemoteTimer(10, "mysql"), instance(tb::remote::MySQLWorker::getMySQLInstance())
         {
         }
     };

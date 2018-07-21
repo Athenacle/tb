@@ -319,6 +319,24 @@ namespace tb
             return nullptr;
         }
 
+        void MySQLWorker::beginTransation()
+        {
+            if (status == CONNECTION_SUCCESS_DB_CHANGED) {
+                mysql_autocommit(_remote, AUTO_COMMIT_FALSE);
+            }
+        }
+
+        int MySQLWorker::query(const char* sql)
+        {
+            return mysql_query(_remote, sql);
+        }
+
+        void MySQLWorker::commit()
+        {
+            checkDBError();
+            mysql_commit(_remote);
+            mysql_autocommit(_remote, AUTO_COMMIT_TRUE);
+        }
 
         bool MySQLWorker::tryConnect(const char** err)
         {

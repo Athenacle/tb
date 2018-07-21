@@ -19,17 +19,18 @@ int doit(const char *fn)
     const size_t size = 64;
     char *buffer = new char[size];
     std::string fcode, bcode;
-
-    //   int ret = i.getItemCode(fcode, bcode, price);
+    fc::OcrResult ocr;
+    int ret = i.getItemCode(fcode, bcode, price, ocr);
     i.AddWaterPrint();
-    // cerr << endl
-    //      << fn << ": " << ret << "\tfull: " << fcode << " bar: " << bcode << " price: " << price
-    //      << endl;
-     delete[] buffer;
+    cerr << endl
+         << fn << ": " << ret << "\tfull: " << fcode << " bar: " << bcode << " price: " << price
+         << endl;
+    cerr << ocr.getJson();
+    delete[] buffer;
     return 0;
 }
 
-int start(const char* json)
+int start(const char *json)
 {
     using namespace Json;  //jsoncpp
 
