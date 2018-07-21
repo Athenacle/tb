@@ -98,7 +98,7 @@ namespace fc
         int OpenImageFile(const char*);
         int WriteToFile(const char* = nullptr);
 
-        int getItemCode(string&, string&, int& price);
+        int getItemCode(string&, string&, int& price, OcrResult&);
         int AddWaterPrint();
     };
 
@@ -122,9 +122,10 @@ namespace fc
         int yOffset;
 
         BaseImage* waterMarker;
-        BaseImage* waterMarkerMask;
-
+        Mat waterMarkerMask;
         bool CheckWaterMarker(char*, size_t);
+
+        void buildMask();
 
     public:
         ~WaterMarker();

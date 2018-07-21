@@ -160,7 +160,7 @@ namespace fc
 
     Image::Image(const char* _fname) : BaseImage(_fname), success(true) {}
 
-    int Image::getItemCode(std::string& fcode, std::string& bcode, int& price)
+    int Image::getItemCode(std::string& fcode, std::string& bcode, int& price, OcrResult& result)
     {
         cv::Rect rect;
         price = 0;
@@ -174,14 +174,12 @@ namespace fc
 
         ret = 0;
         std::string teFCode, teBCode;
-        OcrResult result;
         zstatus = zbarCodeIdentify(imageMat, rect, bcode);
         tstatus = ProcessingOCR(this->filename, result);
         if (zstatus == 1
             && only::checkBarCodeValidate(bcode)) {  // zbar success. Bar Code MUST be TRUE.
             ret = ret | ZBAR_OK;                     // 1
         }
-        std::cerr << "tstatus : " << tstatus;
         if (tstatus >= 1) {
             ret = ret | OCR_OK;  // 2
             if (result.getFullCode(teFCode)) {
@@ -286,7 +284,7 @@ namespace fc
         anchor = ANCHOR_TOP | ANCHOR_LEFT;
         xOffset = 0;
         yOffset = 1;
-        waterMarkerMask = waterMarker = nullptr;
+        waterMarker = nullptr;
     }
 
 
@@ -313,8 +311,8 @@ namespace fc
                 log_ERROR(buffer);
                 return false;
             }
-            this->waterMarker = new BaseImage(waterMarkerPath.c_str());
-            this->waterMarkerMask = new BaseImage(waterMarkerPath.c_str(), cv::IMREAD_GRAYSCALE);
+            this->waterMarker =
+                new BaseImage(waterMarkerPath.c_str());  //, CV_LOAD_IMAGE_UNCHANGED);
         }
         if (r < 0) {
             double rr = 360 - std::fmod(rotation, 360);
@@ -388,7 +386,27 @@ namespace fc
         log_INFO(buffer);
 
         waterMarker->resize(resize);
+        buildMask();
         return true;
+    }
+
+    void WaterMarker::buildMask()
+    {
+        auto& wm = waterMarker->getMat();
+        waterMarkerMask = wm.clone();
+        Mat mid;
+        cv::cvtColor(waterMarkerMask, mid, CV_RGB2GRAY);
+        cv::threshold(mid, waterMarkerMask, 180, 255, CV_THRESH_BINARY_INV);
+        if (transparent < 1) {
+            Mat color_mask;
+            std::vector<Mat> planes;
+            split(wm, planes);
+            for (auto& it : planes) {
+                waterMarkerMask.copyTo(it);
+            }
+            merge(planes, color_mask);
+            cv::bitwise_and(wm, color_mask, waterMarkerMask);
+        }
     }
 
     WaterMarker::~WaterMarker()
@@ -553,7 +571,6 @@ namespace fc
         Json::StreamWriterBuilder fwriter;
         fwriter.settings_["indentation"] = "";
         json = Json::writeString(fwriter, result);
-        std::cout << json;
         return vstring.size();
     }  // namespace fc
 
@@ -601,7 +618,7 @@ namespace fc
         int baseWidth = imageMat.cols;
 
         auto& markerMAT = wm.waterMarker->getMat();
-        auto& maskMAT = wm.waterMarkerMask->getMat();
+        auto& maskMAT = wm.waterMarkerMask;
 
         int wmRow = markerMAT.rows;
         int wmCol = markerMAT.cols;
@@ -629,11 +646,10 @@ namespace fc
 
         Mat imgROI = imageMat(wmPos);
         if (wm.transparent != 1) {
-            cv::addWeighted(imgROI, 1.0, markerMAT, wm.transparent, 0, imgROI);
+            cv::addWeighted(imgROI, 1 - wm.transparent, maskMAT, wm.transparent, 0, imgROI);
         } else {
             markerMAT.copyTo(imgROI, maskMAT);
         }
-        std::cout << "aaaaa";
         SHOW(imageMat);
         return true;
     }
