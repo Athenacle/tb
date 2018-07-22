@@ -174,14 +174,16 @@ void StartLog(const Json::Value &doc, tb::thread_ns::barrier *b)
     }
 }
 
-#define getValue(name, parent, type, value) \
-    do {                                    \
-        if (parent.isMember(#name)) {       \
-            auto &obj = parent[#name];      \
-            if (obj.is##type()) {           \
-                value = obj.as##type();     \
-            }                               \
-        }                                   \
+#define getValue(name, parent, type, value, def) \
+    do {                                         \
+        if (parent.isMember(#name)) {            \
+            auto &obj = parent[#name];           \
+            if (obj.is##type()) {                \
+                value = obj.as##type();          \
+            } else {                             \
+                value = def;                     \
+            }                                    \
+        }                                        \
     } while (false)
 
 void StartMYSQL()
@@ -243,26 +245,26 @@ void StartRemote(const Json::Value &v)
         auto &remote = v["remote"];
         auto &mysql = remote["mysql"];
         if (!mysql.isNull()) {
-            getValue(address, mysql, String, globalConfig.mysqlAddress);
-            getValue(port, mysql, Int, globalConfig.mysqlPort);
-            getValue(username, mysql, String, globalConfig.mysqlUserName);
-            getValue(password, mysql, String, globalConfig.mysqlPassword);
-            getValue(enable, mysql, Bool, globalConfig.mysqlEnable);
-            getValue(compress, mysql, Bool, globalConfig.mysqlCompress);
-            getValue(db, mysql, String, globalConfig.mysqlDB);
+            getValue(address, mysql, String, globalConfig.mysqlAddress, "127.0.0.1");
+            getValue(port, mysql, Int, globalConfig.mysqlPort, 3306);
+            getValue(username, mysql, String, globalConfig.mysqlUserName, "");
+            getValue(password, mysql, String, globalConfig.mysqlPassword, "");
+            getValue(enable, mysql, Bool, globalConfig.mysqlEnable, false);
+            getValue(compress, mysql, Bool, globalConfig.mysqlCompress, true);
+            getValue(db, mysql, String, globalConfig.mysqlDB, "");
             StartMYSQL();
         }
 #ifdef BUILD_WITH_LIBSSH
         auto &sftp = remote["sftp"];
         if (!mysql.isNull()) {
-            getValue(enable, sftp, Bool, globalConfig.sftpEnable);
-            getValue(address, sftp, String, globalConfig.sftpAddress);
-            getValue(port, sftp, Int, globalConfig.sftpPort);
-            getValue(username, sftp, String, globalConfig.sftpUsername);
-            getValue(password, sftp, String, globalConfig.sftpPassword);
-            getValue(identifyFile, sftp, String, globalConfig.sftpIndentifyPath);
-            getValue(remotePath, sftp, String, globalConfig.sftpRemotePath);
-            getValue(passphrase, sftp, String, globalConfig.sftpPassphrase);
+            getValue(enable, sftp, Bool, globalConfig.sftpEnable, false);
+            getValue(address, sftp, String, globalConfig.sftpAddress, "127.0.0.1");
+            getValue(port, sftp, Int, globalConfig.sftpPort, 22);
+            getValue(username, sftp, String, globalConfig.sftpUsername, "");
+            getValue(password, sftp, String, globalConfig.sftpPassword , "");
+            getValue(identifyFile, sftp, String, globalConfig.sftpIndentifyPath, "");
+            getValue(remotePath, sftp, String, globalConfig.sftpRemotePath, "");
+            getValue(passphrase, sftp, String, globalConfig.sftpPassphrase, "");
             StartSFTP();
         }
 #endif
@@ -277,15 +279,14 @@ void StartSystem(const Json::Value &jsonRoot)
     bool useInotify;
     int uid, gid;
     int workCount;
-    uid = gid = -1;
     auto &root = jsonRoot["system"];
-    getValue(rootDirectory, root, String, dir);
-    getValue(useInotify, root, Bool, useInotify);
-    getValue(gid, root, Int, gid);
-    getValue(uid, root, Int, uid);
-    getValue(rawDirectory, root, String, rawDir);
-    getValue(productDir, root, String, productDir);
-    getValue(workerThreadCount, root, Int, workCount);
+    getValue(rootDirectory, root, String, dir, "./");
+    getValue(useInotify, root, Bool, useInotify, true);
+    getValue(gid, root, Int, gid, -1);
+    getValue(uid, root, Int, uid, -1);
+    getValue(rawDirectory, root, String, rawDir, "./");
+    getValue(productDir, root, String, productDir, "./");
+    getValue(workerThreadCount, root, Int, workCount, 5);
 
     globalConfig.threadCount = workCount;
     globalConfig.path = (dir);
@@ -303,6 +304,8 @@ void StartSystem(const Json::Value &jsonRoot)
     }
     inotify_add_watch(globalConfig.inotifyFD, dir.c_str(), IN_CREATE | IN_MODIFY | IN_ONLYDIR);
 #endif
+
+    PrintConfigInfo(buffer, bsize);
 
     if (uid >= 0) {
         if (setuid(uid) == -1) {
@@ -322,7 +325,6 @@ void StartSystem(const Json::Value &jsonRoot)
             log_TRACE(buffer);
         }
     }
-    PrintConfigInfo(buffer, bsize);
     releaseMemory(buffer);
 }
 
@@ -390,7 +392,7 @@ void version(const char *name)
 #else
          << "C++ 11 Thread Model" << endl;
 #endif
-    cout << "Build with Boost Version " << TB_BOOST_VERSION << endl;
-    cout << "Build with ZLIB Version " << TB_ZLIB_VERSION << endl;
+    cout << "Boost Version " << TB_BOOST_VERSION << endl;
+    cout << "ZLIB Version " << TB_ZLIB_VERSION << endl;
     exit(0);
 }
