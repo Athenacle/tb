@@ -28,6 +28,11 @@ namespace tb
             using SW = SFTPWorker;
             using csr = const string&;
 
+            struct SFTPKeepAliveTimer : public tb::thread_ns::thread {
+                SFTPKeepAliveTimer() : thread("sshTi") {}
+                virtual void* start(void*, void*, void* = nullptr) override;
+            };
+
             unsigned int ip;
 
             string addr;
@@ -43,6 +48,10 @@ namespace tb
             bool enabled;
 
             static SFTPWorker* instance;
+
+            SFTPKeepAliveTimer timer;
+            tb::thread_ns::mutex tm;
+            int value;
 
             int _socket;
             LIBSSH2_SESSION* _session;
@@ -68,10 +77,14 @@ namespace tb
             SFTPWorker(csr, csr, csr, csr, csr, csr, unsigned int, bool);
             ~SFTPWorker();
 
+            void keepAlive();
+
         public:
             static SW& getSFTPInstance();
             static SW& initSFTPInstance(csr, csr, csr, csr, csr, csr, unsigned int, bool);
             static void destrypSFTPInstance();
+
+            int sendFile(const char*);
 
             const char* tryConnect();
         };

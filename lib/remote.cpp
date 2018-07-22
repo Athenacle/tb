@@ -34,6 +34,30 @@ namespace tb
 #ifdef BUILD_WITH_LIBSSH
         SFTPWorker* SFTPWorker::instance = nullptr;
 
+        void* SFTPWorker::SFTPKeepAliveTimer::start(void* _m, void* _v, void*)
+        {
+            tb::thread_ns::mutex* m = reinterpret_cast<tb::thread_ns::mutex*>(_m);
+            int* p = reinterpret_cast<int*>(_v);
+            do {
+                sleep(7);
+                m->lock();
+                if (*p == 0) {
+                    log_INFO("SFTP Keep Alive Timer Closed.");
+                    break;
+                }
+                m->unlock();
+                SFTPWorker::getSFTPInstance().keepAlive();
+            } while (true);
+            return nullptr;
+        }
+
+        void SFTPWorker::keepAlive()
+        {
+            int next = 10;
+            libssh2_keepalive_send(_session, &next);
+            log_INFO("Send Keep Alive Timer to remote.");
+        }
+
         SFTPWorker& SFTPWorker::initSFTPInstance(const string& _addr,
                                                  const string& _user,
                                                  const string& _pass,
@@ -68,6 +92,7 @@ namespace tb
               port(_port),
               enabled(_enable)
         {
+            value = 1;
             _session = nullptr;
             _handle = nullptr;
             _sftpsession = nullptr;
@@ -96,13 +121,19 @@ namespace tb
 
         void SFTPWorker::close()
         {
+            log_INFO("Begin SFTP Connection Shutdown proceudre.");
+            tm.lock();
+            value = 0;
+            tm.unlock();
+            timer.join();
+
             libssh2_sftp_close(_handle);
             libssh2_session_disconnect(_session, "close");
             libssh2_session_free(_session);
             libssh2_exit();
             ::close(_socket);
+            log_INFO("SFTP Connection Closed");
         }
-
 
         SFTPWorker::~SFTPWorker() {}
 
@@ -173,7 +204,7 @@ namespace tb
                     snprintf(fbuf, 4, "%02x:", (unsigned char)fingerprint[i]);
                     strcat(fpbuf, fbuf);
                 }
-                fpbuf[60] = 0;
+                fpbuf[59] = 0;
                 snprintf(buffer, bsize, "Remote Fingerprint: %s", fpbuf);
                 log_INFO(buffer);
             }
@@ -222,6 +253,7 @@ namespace tb
             }
             if (status == CONNECTION_SUCCESS) {
                 snprintf(buffer, bsize, "SSH Channel established successfully.");
+                timer.begin(&tm, &value);
                 log_INFO(buffer);
             } else {
                 checkSSHError();
@@ -253,6 +285,7 @@ namespace tb
         void MySQLWorker::close()
         {
             mysql_close(_remote);
+            log_INFO("MySQL Connection Closed.");
         }
 
         MySQLWorker::~MySQLWorker()
