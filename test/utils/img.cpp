@@ -20,12 +20,21 @@ int doit(const char *fn)
     char *buffer = new char[size];
     std::string fcode, bcode;
     fc::OcrResult ocr;
-    int ret = i.getItemCode(fcode, bcode, price, ocr);
     i.AddWaterPrint();
+    int curl;
+    int ret = i.getItemCode(fcode, bcode, price, curl, ocr);
     cerr << endl
          << fn << ": " << ret << "\tfull: " << fcode << " bar: " << bcode << " price: " << price
          << endl;
     cerr << ocr.getJson();
+    ocr.clear();
+    fc::OcrResult res;
+    ret = i.getItemAccurateCode(fcode, bcode, price, curl, res);
+    cerr << endl
+         << fn << ": " << ret << "\tfull: " << fcode << " bar: " << bcode << " price: " << price
+         << endl;
+    cerr << res.getJson() << endl;
+
     delete[] buffer;
     return 0;
 }

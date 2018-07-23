@@ -35,5 +35,6 @@ TEST(REGEX_TEST, price)
     EXPECT_EQ(checkPrice("￥299"), 299);
     EXPECT_EQ(checkPrice("\uffe5299"), 299);
 
-    EXPECT_TRUE(checkFullCode("11834951519131"));
+    EXPECT_FALSE(checkFullCode("11834951519131"));
+    EXPECT_TRUE(checkFullCode("118207660H5G360"));
 }

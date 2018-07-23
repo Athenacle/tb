@@ -11,6 +11,7 @@
 #endif
 
 #include <fcntl.h>  // for O_RDONLY
+#include <string>
 
 namespace tb
 {
@@ -58,6 +59,11 @@ namespace tb
 
         int destroyFile(void*, size_t, char**);
 
+        int mkParentDir(const std::string&);
+
+        bool getParentDir(const std::string&, std::string&);
+
+        void formatDirectoryPath(std::string&);
     };  // namespace utils
 }  // namespace tb
 

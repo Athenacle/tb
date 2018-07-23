@@ -7,6 +7,7 @@ SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake)
 SET(TB_INCLUDE_ROOT ${CMAKE_SOURCE_DIR}/include/)
 
 INCLUDE_DIRECTORIES(${TB_INCLUDE_ROOT})
+INCLUDE_DIRECTORIES(${TB_INCLUDE_ROOT}/filechecker)
 
 SET(CMAKE_CXX_STANDARD 14)
 SET(PROJECT_VERSION 0.0.0)
@@ -87,7 +88,8 @@ LIST(APPEND libList ${OPENSSL_LIBRARIES})
 
 INCLUDE(FindCURL)
 LIST(APPEND libList ${CURL_LIBRARIES})
-
+SET(CMAKE_EXE_LINKER_FLAGS "-Wl,--as-needed -z now")
+SET(CMAKE_MODULE_LINKER_FLAGS "-Wl,--as-needed -z now")
 ##dependencies end
 #### configure file.
 CONFIGURE_FILE(${TB_INCLUDE_ROOT}/config.h.in
@@ -120,12 +122,15 @@ ADD_EXECUTABLE(tbTest ${TB_TEST_SOURCE_LIST}
 
 ADD_DEPENDENCIES(tbTest gtest)
 
+ADD_EXECUTABLE(sftpTest ${CMAKE_SOURCE_DIR}/test/utils/sftptest.cpp)
+
 ADD_EXECUTABLE(imgTest ${CMAKE_SOURCE_DIR}/test/utils/img.cpp)
 
-ADD_EXECUTABLE(log_test ${CMAKE_SOURCE_DIR}/test/utils/log_test.cpp)
+ADD_EXECUTABLE(logTest ${CMAKE_SOURCE_DIR}/test/utils/log_test.cpp)
 
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/test)
 
 TARGET_LINK_LIBRARIES(imgTest tb ${libList})
 TARGET_LINK_LIBRARIES(tbTest libgtest tb ${libList})
-TARGET_LINK_LIBRARIES(log_test tb pthread ${libList})
+TARGET_LINK_LIBRARIES(logTest tb pthread ${libList})
+TARGET_LINK_LIBRARIES(sftpTest tb pthread ${libList})

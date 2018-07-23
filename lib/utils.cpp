@@ -1,5 +1,6 @@
 
 #include "taobao.h"
+#include "threads.h"
 
 #include <cstdio>
 #include <cstring>
@@ -23,14 +24,16 @@ namespace tb
     namespace
     {
         boost::pool<>* __pool = nullptr;
-    }
+        tb::thread_ns::mutex _m;
+        const int blockSize = 256;
+    }  // namespace
     namespace utils
     {
         void InitCoreUtilties()
         {
             if (__pool == nullptr) {
                 auto ___pool = reinterpret_cast<boost::pool<>*>(malloc(sizeof *__pool));
-                __pool = new (___pool) boost::pool<>(sizeof(char), 1 << 12);
+                __pool = new (___pool) boost::pool<>(blockSize * sizeof(char), 1 << 20);
             }
         }
 
@@ -44,16 +47,23 @@ namespace tb
 
         char* requestMemory(unsigned long _size)
         {
-            //return reinterpret_cast<char*>(__pool->ordered_malloc(_size));
-            return reinterpret_cast<char*>(malloc(_size));
+            int count = _size / blockSize;
+            if (_size % blockSize > 0) {
+                count++;
+            }
+            _m.lock();
+            auto ret = reinterpret_cast<char*>(__pool->ordered_malloc(count));
+            _m.unlock();
+            return ret;
         }
 
         void releaseMemory(const void* _ptr)
         {
-            //     if (_ptr != nullptr) {
-            //         __pool->ordered_free(const_cast<void*>(_ptr));
-            //     }
-            free((void*)_ptr);
+            if (_ptr != nullptr) {
+                _m.lock();
+                __pool->ordered_free(const_cast<void*>(_ptr));
+                _m.unlock();
+            }
         }
 
         int gzCompress(unsigned char* _in, size_t _in_size, unsigned char** _out)
@@ -173,6 +183,95 @@ namespace tb
             releaseMemory(p);
 #endif
             return 0;
+        }
+
+        namespace
+        {
+            int mk(const std::string& dir)
+            {
+                auto sep = dir.find_last_of('/');
+                int ret = 1;
+                struct stat st;
+                if (stat(dir.c_str(), &st) == 0) {
+                    if (S_ISDIR(st.st_mode)) {
+                        return 0;
+                    }
+                }
+
+                if (sep != std::string::npos) {
+                    ret = mk(dir.substr(0, sep));
+                    if (ret == 0) {
+                        ret = mkdir(dir.c_str(), 0755);
+                        if (ret == EEXIST) {
+                            return 0;
+                        } else {
+                            return ret;
+                        }
+                    } else {
+                        return ret;
+                    }
+                } else {
+                    if (mkdir(dir.c_str(), 0755) == -1) {
+                        if (errno == EEXIST) {
+                            return 0;
+                        } else {
+                            return errno;
+                        }
+                    }
+                }
+                return 0;
+            }
+        }  // namespace
+
+        int mkParentDir(const std::string& p)
+        {
+            std::string par;
+            getParentDir(p, par);
+            return mk(par);
+        }
+
+        bool getParentDir(const std::string& p, std::string& parent)
+        {
+            auto s = p.find_last_of('/');
+            if (s == 0 || s == std::string::npos) {
+                parent = p;
+                return false;
+            } else {
+                parent = p.substr(0, s);
+                return true;
+            }
+        }
+
+        void formatDirectoryPath(std::string& p)
+        {
+            const char* ptr = p.c_str();
+            std::string dest;
+            dest.reserve(p.length());
+            bool match = false;
+
+            for (; *ptr; ptr++) {
+                if (*ptr == '\t' || *ptr == ' ') {
+                    if (match) {
+                        dest.push_back(*ptr);
+                    } else {
+                        continue;
+                    }
+                } else {
+                    if (*ptr == '.' && *(ptr + 1) == '/') {
+                        ptr++;
+                        if (match) {
+                            dest.append("./");
+                        } else {
+                            continue;
+                        }
+                    } else if (*ptr == '/' && *(ptr + 1) == '/') {
+                        continue;
+                    }
+                    match = true;
+                    dest.push_back(*ptr);
+                }
+            }
+            std::swap(p, dest);
         }
 
     }  // namespace utils

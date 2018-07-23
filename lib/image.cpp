@@ -136,12 +136,16 @@ namespace fc
 
     BaseImage::BaseImage(const char* _path, unsigned int mask) : filename(_path)
     {
+        _l.write();
         imageMat = cv::imread(filename, mask);
+        _l.unlock();
     }
 
     void BaseImage::resize(double t)
     {
+        _l.write();
         cv::resize(imageMat, imageMat, cv::Size(t * imageMat.cols, t * imageMat.rows));
+        _l.unlock();
     }
 
     void BaseImage::rotateScale(const cv::Point& center, double rotation, double scale)
@@ -160,10 +164,29 @@ namespace fc
 
     Image::Image(const char* _fname) : BaseImage(_fname), success(true) {}
 
-    int Image::getItemCode(std::string& fcode, std::string& bcode, int& price, OcrResult& result)
+    int Image::getItemAccurateCode(string& bc, string& fc, int& p, int& c,OcrResult& res)
+    {
+        int ret = ProcessingOCR(filename, res, c, true);
+        res.getBarCode(bc);
+        res.getFullCode(fc);
+        res.getPrice(p);
+        static char buffer[1024];
+        snprintf(buffer,
+                 1024,
+                 "Accurate %s -> fc %s -> bc %s -> price %d",
+                 filename.c_str(),
+                 fc.c_str(),
+                 bc.c_str(),
+                 p);
+        log_INFO(buffer);
+        return ret;
+    }
+
+    int Image::getItemCode(std::string& fcode, std::string& bcode, int& price, int& c,OcrResult& result)
     {
         cv::Rect rect;
         price = 0;
+        read();
         int ret = opencvFindBarCodeROI(imageMat, rect);
         if (ret == -1) {
             return 0;
@@ -175,7 +198,8 @@ namespace fc
         ret = 0;
         std::string teFCode, teBCode;
         zstatus = zbarCodeIdentify(imageMat, rect, bcode);
-        tstatus = ProcessingOCR(this->filename, result);
+        tstatus = ProcessingOCR(this->filename, result, c);
+
         if (zstatus == 1
             && only::checkBarCodeValidate(bcode)) {  // zbar success. Bar Code MUST be TRUE.
             ret = ret | ZBAR_OK;                     // 1
@@ -208,6 +232,7 @@ namespace fc
                 }
             }
         }
+        unlock();
         return ret;
     }
 
@@ -311,8 +336,10 @@ namespace fc
                 log_ERROR(buffer);
                 return false;
             }
+            _lock.write();
             this->waterMarker =
                 new BaseImage(waterMarkerPath.c_str());  //, CV_LOAD_IMAGE_UNCHANGED);
+            _lock.unlock();
         }
         if (r < 0) {
             double rr = 360 - std::fmod(rotation, 360);
@@ -385,8 +412,10 @@ namespace fc
             yOffset);
         log_INFO(buffer);
 
+        _lock.write();
         waterMarker->resize(resize);
         buildMask();
+        _lock.unlock();
         return true;
     }
 
@@ -411,8 +440,10 @@ namespace fc
 
     WaterMarker::~WaterMarker()
     {
+        _lock.write();
         if (waterMarker != nullptr)
             delete waterMarker;
+        _lock.unlock();
     }
 
 #define WATER_GETVALUE(destValue, parent, key, Type, def)       \
@@ -520,10 +551,10 @@ namespace fc
         return 0;
     }
 
-    int ProcessingOCR(const string& path, OcrResult& result)
+    int ProcessingOCR(const string& path, OcrResult& result, int& c, bool ac)
     {
         return ProcessingOCR(
-            path, result.words, result.id, result.errMessage, result.errCode, result.json);
+            path, result.words, result.id, result.errMessage, result.errCode, result.json, c, ac);
     }
 
     int ProcessingOCR(const string& _path,
@@ -531,8 +562,11 @@ namespace fc
                       uint64_t& _id,
                       std::string& _errmessage,
                       int& _errcode,
-                      std::string& json)
+                      std::string& json,
+                      int& curl,
+                      bool ac)
     {
+        curl = 0;
         auto path = _path.c_str();
         Json::Value result;
         std::string image;
@@ -544,8 +578,19 @@ namespace fc
                                                                    {"detect_direction", "true"},
                                                                    {"detect_language", "true"},
                                                                    {"probability", "true"}};
-        result = client->general_basic(image, options);
+        if (!ac) {
+            result = client->general_basic(image, options);
+        } else {
+            result = client->accurate_basic(image, options);
+        }
         vstring.clear();
+        if (result.isMember("curl_error_code")){
+            curl = result["curl_error_code"].asInt();
+            _errcode = 1;
+            _errmessage = ocrErrorTable.at(_errcode);
+            return -1;
+        }
+
         if (result.isMember("error_code")) {
             _errcode = result["error_code"].asInt();
             if (result.isMember("error_msg")) {
@@ -553,7 +598,7 @@ namespace fc
             } else {
                 _errmessage = ocrErrorTable.at(_errcode);
             }
-            return 0;
+            return -1;
         }
 
         if (result.isMember("log_id")) {
@@ -570,6 +615,7 @@ namespace fc
         }
         Json::StreamWriterBuilder fwriter;
         fwriter.settings_["indentation"] = "";
+        json.clear();
         json = Json::writeString(fwriter, result);
         return vstring.size();
     }  // namespace fc
@@ -616,7 +662,8 @@ namespace fc
     {
         int baseHeight = imageMat.rows;
         int baseWidth = imageMat.cols;
-
+        wm.read();
+        read();
         auto& markerMAT = wm.waterMarker->getMat();
         auto& maskMAT = wm.waterMarkerMask;
 
@@ -641,15 +688,19 @@ namespace fc
                      imageMat.rows);
             log_WARNING(buffer);
             tb::utils::releaseMemory(buffer);
+            wm.unlock();
             return false;
         }
-
+        unlock();
+        _l.write();
         Mat imgROI = imageMat(wmPos);
         if (wm.transparent != 1) {
             cv::addWeighted(imgROI, 1 - wm.transparent, maskMAT, wm.transparent, 0, imgROI);
         } else {
             markerMAT.copyTo(imgROI, maskMAT);
         }
+        _l.unlock();
+        wm.unlock();
         return true;
     }
 }  // namespace fc

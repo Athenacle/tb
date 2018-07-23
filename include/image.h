@@ -71,8 +71,17 @@ namespace fc
     protected:
         const string filename;
         Mat imageMat;
+        tb::thread_ns::rwlock _l;
 
     public:
+        void read()
+        {
+            _l.read();
+        }
+        void unlock()
+        {
+            _l.unlock();
+        }
         BaseImage(const char* filename, unsigned int mask = cv::IMREAD_COLOR);
         bool valid() const;
         virtual ~BaseImage() {}
@@ -98,7 +107,8 @@ namespace fc
         int OpenImageFile(const char*);
         int WriteToFile(const char* = nullptr);
 
-        int getItemCode(string&, string&, int& price, OcrResult&);
+        int getItemAccurateCode(string&, string&, int& price, int&, OcrResult&);
+        int getItemCode(string&, string&, int& price, int&, OcrResult&);
         int AddWaterPrint();
     };
 
@@ -109,6 +119,8 @@ namespace fc
         friend class Image;
 
         static std::vector<WaterMarker*> markers;
+
+        mutable tb::thread_ns::rwlock _lock;
 
         string id;
         string waterMarkerPath;
@@ -128,6 +140,14 @@ namespace fc
         void buildMask();
 
     public:
+        void read() const
+        {
+            _lock.read();
+        }
+        void unlock() const
+        {
+            _lock.unlock();
+        }
         ~WaterMarker();
         WaterMarker();
         static const std::vector<WaterMarker*>& getMarkers();
@@ -149,10 +169,29 @@ namespace fc
         {
             return json;
         }
+        void clear()
+        {
+            id = 0;
+            errCode = 0;
+            json = errMessage = "";
+            words.clear();
+        }
+        const char* getError(int& e) const
+        {
+            e = errCode;
+            return errMessage.c_str();
+        };
         char* dumpJson() const;
         bool getFullCode(string&) const;
         bool getBarCode(string&) const;
         bool getPrice(int&) const;
+        OcrResult()
+        {
+            id = 0;
+            errMessage = "";
+            errCode = 0;
+            json = "";
+        }
     };
 
     class OcrHandler
@@ -170,6 +209,8 @@ namespace fc
     };
 
     const std::map<int, const char*> ocrErrorTable = {
+        {0, "Success"},
+        {1, "curl error"},
         {4, "Open api request limit reached"},
         {14, "IAM Certification failed"},
         {17, "Open api daily request limit reached"},
@@ -204,9 +245,10 @@ namespace fc
         {282810, "image recognize error"},
     };
 
-    int ProcessingOCR(const string&, std::vector<string>&, uint64_t&, string&, int&, string&);
+    int ProcessingOCR(
+        const string&, std::vector<string>&, uint64_t&, string&, int&, string&, int&, bool = false);
 
-    int ProcessingOCR(const string&, OcrResult&);
+    int ProcessingOCR(const string&, OcrResult&, int&, bool = false);
 
     int ImageProcessingDestroy();
 };  // namespace fc

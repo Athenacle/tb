@@ -45,6 +45,7 @@ namespace tb
 
             unsigned int status;
 
+            bool enableTimer;
             bool enabled;
 
             static SFTPWorker* instance;
@@ -56,8 +57,6 @@ namespace tb
             int _socket;
             LIBSSH2_SESSION* _session;
             LIBSSH2_SFTP* _sftpsession;
-            LIBSSH2_SFTP_HANDLE* _handle;
-
 
             int errNo;
             char* errString;
@@ -69,22 +68,31 @@ namespace tb
 
             void close();
 
+            int mkparent(const string&);
+            int SFTPMkParentDir(const string&);
+
             void checkSSHError()
             {
                 errNo = libssh2_session_last_error(_session, &errString, nullptr, esize);
             }
 
-            SFTPWorker(csr, csr, csr, csr, csr, csr, unsigned int, bool);
+            void clearSSHError()
+            {
+                errNo = 0;
+            }
+
+            SFTPWorker(csr, csr, csr, csr, csr, csr, unsigned int, bool, bool = true);
             ~SFTPWorker();
 
             void keepAlive();
 
         public:
             static SW& getSFTPInstance();
-            static SW& initSFTPInstance(csr, csr, csr, csr, csr, csr, unsigned int, bool);
+            static SW& initSFTPInstance(
+                csr, csr, csr, csr, csr, csr, unsigned int, bool, bool = true);
             static void destrypSFTPInstance();
 
-            int sendFile(const char*);
+            int sendFile(const char*, const char*);
 
             const char* tryConnect();
         };

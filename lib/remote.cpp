@@ -41,11 +41,12 @@ namespace tb
             do {
                 sleep(7);
                 m->lock();
-                if (*p == 0) {
+                auto value = *p;
+                m->unlock();
+                if (value == 0) {
                     log_INFO("SFTP Keep Alive Timer Closed.");
                     break;
                 }
-                m->unlock();
                 SFTPWorker::getSFTPInstance().keepAlive();
             } while (true);
             return nullptr;
@@ -65,13 +66,14 @@ namespace tb
                                                  const string& _passph,
                                                  const string& _fpath,
                                                  unsigned int _port,
-                                                 bool _enable)
+                                                 bool _enable,
+                                                 bool _enableTimer)
         {
             if (SFTPWorker::instance != nullptr) {
                 assert(0);
             }
-            SFTPWorker::instance =
-                new SFTPWorker(_addr, _user, _pass, _path, _passph, _fpath, _port, _enable);
+            SFTPWorker::instance = new SFTPWorker(
+                _addr, _user, _pass, _path, _passph, _fpath, _port, _enable, _enableTimer);
             return SFTPWorker::getSFTPInstance();
         }
 
@@ -82,7 +84,8 @@ namespace tb
                                const string& _passph,
                                const string& _fpath,
                                unsigned int _port,
-                               bool _enable)
+                               bool _enable,
+                               bool _enableTimer)
             : addr(_addr),
               user(_user),
               pass(_pass),
@@ -90,11 +93,11 @@ namespace tb
               passphrase(_passph),
               remotePath(_fpath),
               port(_port),
+              enableTimer(_enableTimer),
               enabled(_enable)
         {
             value = 1;
             _session = nullptr;
-            _handle = nullptr;
             _sftpsession = nullptr;
             ip = 0;
             status = CONNECTION_NOT_REAL_CONNECT;
@@ -126,8 +129,7 @@ namespace tb
             value = 0;
             tm.unlock();
             timer.join();
-
-            libssh2_sftp_close(_handle);
+            libssh2_sftp_shutdown(_sftpsession);
             libssh2_session_disconnect(_session, "close");
             libssh2_session_free(_session);
             libssh2_exit();
@@ -147,9 +149,108 @@ namespace tb
                 checkSSHError();
                 snprintf(buffer, bsize, "Initlize SFTP Session failed: %s", errString);
                 log_ERROR(buffer);
+                status = CONNECTION_FAILED;
+                return;
             } else {
                 snprintf(buffer, bsize, "Initlize SFTP Session successfully.");
                 log_INFO(buffer);
+            }
+        }
+
+
+        int SFTPWorker::mkparent(const string& f)
+        {
+            string parent;
+            int ret;
+            bool p = tb::utils::getParentDir(f, parent);
+            if (p) {
+                ret = mkparent(parent);
+                if (ret == -1) {
+                    return -1;
+                }
+            }
+            errno = 0;
+            LIBSSH2_SFTP_ATTRIBUTES attrib;
+
+            do {
+                ret = libssh2_sftp_stat(_sftpsession, f.c_str(), &attrib);
+            } while (ret == LIBSSH2_ERROR_EAGAIN);
+            if (ret == 0) {
+                if (!LIBSSH2_SFTP_S_ISDIR(attrib.flags)) {
+                    return 0;
+                } else {
+                    return -1;
+                }
+            } else {
+                char buf[512];
+                snprintf(buf, 512, "Remote mkdir of %s", f.c_str());
+                errno = 0;
+                clearSSHError();
+                ret = libssh2_sftp_mkdir(_sftpsession, f.c_str(), 0755);
+                return ret;
+            }
+        }
+
+        int SFTPWorker::SFTPMkParentDir(const string& f)
+        {
+            // f -> /some/path/file.ext
+            // #1 extract parent directory /some/path
+            string parent;  // parent => /some/path
+            tb::utils::getParentDir(f, parent);
+
+            return mkparent(parent);
+        }
+
+
+        int SFTPWorker::sendFile(const char* f, const char *rf)
+        {
+            if (status == CONNECTION_FAILED) {
+                log_DEBUG("CONNECTION_FAILED");
+                return -1;
+            }
+            size_t fsize;
+            char* buffer;
+            const size_t bsize = 256;
+            char buf[bsize];
+            int ret = 0;
+            char* file = reinterpret_cast<char*>(tb::utils::openFile(f, fsize, &buffer));
+            if (file == nullptr) {
+                log_ERROR(buffer);
+                tb::utils::releaseMemory(buffer);
+                return -1;
+            }
+            struct stat st;
+            stat(f, &st);
+            string remotefile = remotePath + "/" + rf;
+            tb::utils::formatDirectoryPath(remotePath);
+
+            ret = SFTPMkParentDir(remotefile);
+            if (ret == -1) {
+                return -1;
+            }
+            auto channel = libssh2_scp_send(_session, remotefile.c_str(), st.st_mode & 0755, fsize);
+            errno = 0;
+            if (channel == nullptr) {
+                checkSSHError();
+                snprintf(buf, bsize, "Open SCP Channel failed: %s", errString);
+                log_ERROR(buf);
+                return -1;
+            } else {
+                log_DEBUG("Open SCP Channel successfully");
+            }
+            errno = 0;
+            auto wrote = libssh2_channel_write(channel, file, fsize);
+            if (wrote < 0) {
+                snprintf(buf, bsize, "Write file to Remote error: %s.", strerror(errno));
+                log_ERROR(buf);
+                ret = -1;
+            } else {
+                libssh2_channel_send_eof(channel);
+                libssh2_channel_wait_eof(channel);
+                libssh2_channel_wait_closed(channel);
+                libssh2_channel_free(channel);
+                snprintf(buf, bsize, "Send file %s -> %s successfully.", f, remotefile.c_str());
+                log_INFO(buf);
             }
         }
 
@@ -193,6 +294,7 @@ namespace tb
                 log_ERROR(buffer);
                 enabled = false;
                 status = CONNECTION_FAILED;
+                return;
             }
 
             auto fingerprint = libssh2_hostkey_hash(_session, LIBSSH2_HOSTKEY_HASH_SHA1);
@@ -253,7 +355,10 @@ namespace tb
             }
             if (status == CONNECTION_SUCCESS) {
                 snprintf(buffer, bsize, "SSH Channel established successfully.");
-                timer.begin(&tm, &value);
+                if (enableTimer) {
+                    value = 0;
+                    timer.begin(&tm, &value);
+                }
                 log_INFO(buffer);
             } else {
                 checkSSHError();

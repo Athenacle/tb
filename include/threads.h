@@ -283,6 +283,28 @@ namespace tb
                 pthread_barrier_destroy(&_b);
             }
         };
+
+        class rwlock
+        {
+            pthread_rwlock_t _l;
+        public:
+            rwlock(){
+                pthread_rwlock_init(&_l, nullptr);
+            }
+            ~rwlock()
+            {
+                pthread_rwlock_destroy(&_l);
+            }
+            void read(){
+                pthread_rwlock_rdlock(&_l);
+            }
+            void write(){
+                pthread_rwlock_wrlock(&_l);
+            }
+            void unlock(){
+                pthread_rwlock_unlock(&_l);
+            }
+        };
 #endif
     }  // namespace thread_ns
 }  // namespace tb

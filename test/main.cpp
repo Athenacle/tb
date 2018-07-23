@@ -1,6 +1,7 @@
 #include "gtest/gtest.h"
 
 #include "tests.h"
+#include "taobao.h"
 
 void test::initTests() {}
 

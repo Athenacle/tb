@@ -261,9 +261,9 @@ void StartRemote(const Json::Value &v)
             getValue(address, sftp, String, globalConfig.sftpAddress, "127.0.0.1");
             getValue(port, sftp, Int, globalConfig.sftpPort, 22);
             getValue(username, sftp, String, globalConfig.sftpUsername, "");
-            getValue(password, sftp, String, globalConfig.sftpPassword , "");
+            getValue(password, sftp, String, globalConfig.sftpPassword, "");
             getValue(identifyFile, sftp, String, globalConfig.sftpIndentifyPath, "");
-            getValue(remotePath, sftp, String, globalConfig.sftpRemotePath, "");
+            getValue(path, sftp, String, globalConfig.sftpRemotePath, "");
             getValue(passphrase, sftp, String, globalConfig.sftpPassphrase, "");
             StartSFTP();
         }
@@ -285,8 +285,9 @@ void StartSystem(const Json::Value &jsonRoot)
     getValue(gid, root, Int, gid, -1);
     getValue(uid, root, Int, uid, -1);
     getValue(rawDirectory, root, String, rawDir, "./");
-    getValue(productDir, root, String, productDir, "./");
+    getValue(productDirectory, root, String, productDir, "./");
     getValue(workerThreadCount, root, Int, workCount, 5);
+    getValue(delete, root, Bool, globalConfig.deleteRaw, false);
 
     globalConfig.threadCount = workCount;
     globalConfig.path = (dir);
@@ -298,6 +299,7 @@ void StartSystem(const Json::Value &jsonRoot)
 
     size_t bsize = dir.length() + 4096;
     char *buffer = requestMemory(bsize);
+
 #ifdef USE_INOTIFY
     if (useInotify) {
         globalConfig.inotifyFD = inotify_init();
@@ -305,7 +307,58 @@ void StartSystem(const Json::Value &jsonRoot)
     inotify_add_watch(globalConfig.inotifyFD, dir.c_str(), IN_CREATE | IN_MODIFY | IN_ONLYDIR);
 #endif
 
+    tb::utils::formatDirectoryPath(globalConfig.path);
+    tb::utils::formatDirectoryPath(globalConfig.rawPath);
+    tb::utils::formatDirectoryPath(globalConfig.productPath);
+
+    const auto pro = globalConfig.productPath.c_str();
+    struct stat st;
+    tb::utils::mkParentDir(globalConfig.productPath);
+    if (stat(pro, &st) == -1) {
+        if (errno == ENONET) {
+            mkdir(pro, 0755);
+        }
+    } else {
+        if (!S_ISDIR(st.st_mode)) {
+            sprintf(buffer, "Not a Directory %s", pro);
+            log_FATAL(buffer);
+        }
+    }
+    auto proPointer = buffer + (bsize >> 2);
+    auto current = buffer;
+
+    getcwd(current, bsize >> 2);
+    chdir(pro);
+    getcwd(proPointer, bsize >> 2);
+    globalConfig.productPath = proPointer;
+    chdir(current);
+    globalConfig.productPrefixLength = globalConfig.productPath.find_last_of(productDir) + 1;
+    auto rawStart = globalConfig.rawPath.find_first_of(globalConfig.path);
+    if (rawStart != 0) {
+        sprintf(buffer,
+                "Raw Image Path %s must be subdirectory of Root Path %s",
+                globalConfig.rawPath.c_str(),
+                globalConfig.path.c_str());
+        log_FATAL(buffer);
+        exit(-1);
+    } else {
+        globalConfig.path = "";
+        globalConfig.rawPath =
+            globalConfig.rawPath.substr(globalConfig.path.length(), std::string::npos);
+    }
+
     PrintConfigInfo(buffer, bsize);
+
+    if (chdir(globalConfig.rawPath.c_str()) == -1) {
+        sprintf(buffer,
+                "Change directory to %s failed: %s",
+                globalConfig.rawPath.c_str(),
+                strerror(errno));
+        log_FATAL(buffer);
+    } else {
+        sprintf(buffer, "Change directory to %s successfully", globalConfig.rawPath.c_str());
+        log_INFO(buffer);
+    }
 
     if (uid >= 0) {
         if (setuid(uid) == -1) {
@@ -360,11 +413,37 @@ void fcInit(const char *json)
     SystemConfig::buildDefaultSystemConfig();
     tb::barrier b(2);
     StartLog(root, &b);
-    StartRemote(root);
     StartSystem(root);
+    StartRemote(root);
     fc::ImageProcessingStartup(root);
     tb::utils::destroyFile(buffer, size, &error);
     delete r;
+}
+
+uint64_t SystemConfig::getDirectoryID(const string &p)
+{
+    std::hash<std::string> hash_fn;
+    auto h = hash_fn(p);
+    _m.lock();
+    uint64_t ret;
+    auto iter = dirs.find(p);
+    if (iter == dirs.cend()) {
+        char buf[48];
+        time_t t = time(nullptr);
+        auto tobj = localtime(&t);
+        snprintf(buf, 48, "%4d%02d%02d", tobj->tm_year + 1900, tobj->tm_mon, tobj->tm_mday);
+        ret = atoll(buf);
+        ret = ret * 100000;
+        ret = ret + h % 100000;
+        char *sql = tb::utils::requestMemory(128 + p.length());
+        sprintf(sql, "INSERT INTO `Directory`(`ID`, `PATH`) VALUES (%lu , '%s')", ret, p.c_str());
+        tb::remote::MySQLWorker::getMySQLInstance().query(sql);
+        dirs[p] = ret;
+    } else {
+        ret = iter->second;
+    }
+    _m.unlock();
+    return ret;
 }
 
 void SystemConfig::buildDefaultSystemConfig()

@@ -21,6 +21,8 @@
 #include <queue>
 #include <string>
 
+#include <cstdint>
+
 using std::queue;
 using std::string;
 
@@ -32,15 +34,20 @@ using tb::utils::requestMemory;
 
 class SystemConfig
 {
+private:
+    mutable tb::thread_ns::mutex _m;
+
 public:
     string path;
     string rawPath;
     string productPath;
     bool chRoot;
     bool useInotify;
+    bool deleteRaw;
     int uid, gid;
     bool forkToBackground;
     int threadCount;
+    int productPrefixLength;
 
     bool mysqlEnable;
     bool mysqlCompress;
@@ -61,7 +68,12 @@ public:
     int sftpPort;
 #endif
 
+    std::map<string, uint64_t> dirs;
+
     static void buildDefaultSystemConfig();
+
+    uint64_t getDirectoryID(const string&) ;
+
 
     SystemConfig()
     {
@@ -136,6 +148,8 @@ namespace fc
         const char* PIC_2;
         const char* PIC_3;
 
+        string destPIC[3];
+
         Image front;
         Image back;
         Image board;
@@ -147,6 +161,7 @@ namespace fc
         int price;
         int ocrfailed;
 
+
     public:
         void ocrFailed()
         {
@@ -157,15 +172,28 @@ namespace fc
             return this->ocrfailed;
         }
 
-        int processingOCR();
+        int processingAccurateOCR(int&);
+        int processingOCR(int&);
 
         void getCode(string&, string&, int&);
 
         void getOcrJson(string&);
 
+        const OcrResult& getOcrResult() const
+        {
+            return ocr;
+        }
+
         const char* getBoardName() const
         {
             return PIC_3;
+        }
+
+        void getDestName(string& p1, string& p2, string& p3)
+        {
+            p1 = destPIC[0];
+            p2 = destPIC[1];
+            p3 = destPIC[2];
         }
 
         void getName(const char*& p1, const char*& p2, const char*& p3)
@@ -175,7 +203,12 @@ namespace fc
             p3 = PIC_3;
         }
         int processing();
+        void SaveFile(const string& = "", bool = false);
+
         Item(const char*, const char*, const char*);
+
+        void setDestPath(string&, string&, string&);
+
         ~Item();
     };
 
@@ -194,9 +227,12 @@ namespace fc
                 sleep(_int);
                 _m.lock();
                 std::swap(qu, _q);
+                while (_q.size() > 0) {
+                    _q.pop();
+                }
                 _m.unlock();
                 auto r = processing(qu);
-                if (r) {
+                if (r && _q.size() == 0) {
                     break;
                 }
             } while (true);
