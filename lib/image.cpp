@@ -88,7 +88,7 @@ namespace
         Mat gray;
         Mat mat = raw(roi);
         Mat barImg = mat(Range(0.1 * mat.rows, mat.rows), Range::all());
-        resize(barImg, barImg, Size(barImg.cols, 3 * barImg.rows));
+        //resize(barImg, barImg, Size(barImg.cols, 3 * barImg.rows));
         cvtColor(barImg, gray, COLOR_RGB2GRAY);
         scanner.set_config(ZBAR_NONE, ZBAR_CFG_ENABLE, 1);
         zbar::Image zbimg(gray.cols, gray.rows, "Y800", gray.data, gray.rows * gray.cols);
@@ -141,6 +141,13 @@ namespace fc
         _l.unlock();
     }
 
+    void BaseImage::resize(const cv::Size& s)
+    {
+        _l.write();
+        cv::resize(imageMat, imageMat, s);
+        _l.unlock();
+    }
+
     void BaseImage::resize(double t)
     {
         _l.write();
@@ -182,8 +189,12 @@ namespace fc
         return ret;
     }
 
-    int Image::getItemCode(
-                           std::string& fcode, std::string& bcode, int& price, int& c, OcrResult& result, int *roiArray)
+    int Image::getItemCode(std::string& fcode,
+                           std::string& bcode,
+                           int& price,
+                           int& c,
+                           OcrResult& result,
+                           int* roiArray)
     {
         cv::Rect rect;
         price = 0;
@@ -201,7 +212,7 @@ namespace fc
         zstatus = zbarCodeIdentify(imageMat, rect, bcode);
         tstatus = ProcessingOCR(this->filename, result, c);
 
-        if (roiArray != nullptr){
+        if (roiArray != nullptr) {
             roiArray[0] = rect.x;
             roiArray[1] = rect.y;
             roiArray[2] = rect.height;
@@ -344,8 +355,7 @@ namespace fc
                 return false;
             }
             _lock.write();
-            this->waterMarker =
-                new BaseImage(waterMarkerPath.c_str());  //, CV_LOAD_IMAGE_UNCHANGED);
+            this->waterMarker = new BaseImage(waterMarkerPath.c_str(), CV_LOAD_IMAGE_UNCHANGED);
             _lock.unlock();
         }
         if (r < 0) {
@@ -421,9 +431,24 @@ namespace fc
 
         _lock.write();
         waterMarker->resize(resize);
-        buildMask();
+        //buildMask();
+        //buildSmall();
         _lock.unlock();
         return true;
+    }
+
+    void WaterMarker::buildSmall()
+    {
+        // Mat *smallWM = new Mat;
+        // Mat * smallMask = new Mat;
+        // auto wm = waterMarker->getMat();
+        // auto wmask = waterMarkerMask;
+        // Mat outWM, outMask;
+        // cv::resize(wm, outWM, cv::Size(0.7 * wm.cols, 0.7 * wm.rows));
+        // cv::resize(wmask, outMask, cv::Size(0.7 * wm.cols, 0.7 * wm.rows));
+        // swap(*smallWM, outWM);
+        // swap(*smallMask, outMask);
+        // small = std::make_tuple(smallWM, smallMask);
     }
 
     void WaterMarker::buildMask()
@@ -676,12 +701,31 @@ namespace fc
         auto& markerMAT = wm.waterMarker->getMat();
         auto& maskMAT = wm.waterMarkerMask;
 
-        int wmRow = markerMAT.rows;
-        int wmCol = markerMAT.cols;
 
+        Mat marker, mask;
+        if (baseWidth < 1000) {
+            //cv::resize(maskMAT, mask, cv::Size(0.7 * markerMAT.cols, 0.7 * markerMAT.rows));
+            if (markerMAT.channels() == 4) {
+                std::vector<cv::Mat> rgba;
+                split(markerMAT, rgba);
+                Mat alpha = Mat();
+                for (auto& c : rgba) {
+                    cv::resize(c, c, cv::Size(0.7 * markerMAT.cols, 0.7 * markerMAT.rows));
+                }
+                merge(rgba, marker);
+            } else {
+                cv::resize(markerMAT, marker, cv::Size(0.7 * markerMAT.cols, 0.7 * markerMAT.rows));
+            }
+        } else {
+            marker = markerMAT;
+        }
+        int wmRow = marker.rows;
+        int wmCol = marker.cols;
         cv::Rect wmPos;
-        calc(wmPos, baseHeight, baseWidth, wmCol, wmRow, wm.anchor, wm.xOffset, wm.yOffset);
-
+        wmPos.x = (baseWidth - wmCol) / 2;
+        wmPos.y = (baseHeight - wmRow - wm.xOffset);
+        wmPos.width = wmCol;
+        wmPos.height = wmRow;
         if ((wmPos.x + wmPos.width) > imageMat.cols || (wmPos.y + wmPos.height) > imageMat.rows) {
             const size_t bsize = 1024;
             char* buffer = tb::utils::requestMemory(bsize);
@@ -703,13 +747,23 @@ namespace fc
         unlock();
         _l.write();
         Mat imgROI = imageMat(wmPos);
-        if (wm.transparent != 1) {
-            cv::addWeighted(imgROI, 1 - wm.transparent, maskMAT, wm.transparent, 0, imgROI);
-        } else {
-            markerMAT.copyTo(imgROI, maskMAT);
+        if (marker.channels() == 3) {
+            log_DEBUG("TO BE IMPLEMENTED.");
+        } else if (markerMAT.channels() == 4) {
+            std::vector<cv::Mat> wm_channels;
+            std::vector<cv::Mat> img_channels;
+            split(imgROI, img_channels);
+            split(marker, wm_channels);
+            CV_Assert(wm_channels.size() == 4 && img_channels.size() == 3);
+            for (int i = 0; i < 3; i++) {
+                img_channels[i] = img_channels[i].mul(255.0 / wm.transparent - wm_channels[3],
+                                                      wm.transparent / 255);
+                img_channels[i] += wm_channels[i].mul(wm_channels[3], wm.transparent / 255.0);
+            }
+            merge(img_channels, imgROI);
         }
         _l.unlock();
-        wm.unlock();
+        unlock();
         return true;
     }
 }  // namespace fc

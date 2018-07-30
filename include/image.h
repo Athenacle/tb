@@ -90,6 +90,7 @@ namespace fc
             return imageMat;
         }
         void resize(double);
+        void resize(const cv::Size&);
         void rotateScale(const cv::Point&, double, double);
     };
 
@@ -122,6 +123,7 @@ namespace fc
 
         mutable tb::thread_ns::rwlock _lock;
 
+        std::tuple<Mat*, Mat*> small;
         string id;
         string waterMarkerPath;
         string position;
@@ -138,8 +140,11 @@ namespace fc
         bool CheckWaterMarker(char*, size_t);
 
         void buildMask();
+        void buildSmall();
 
     public:
+        const std::tuple<Mat*,Mat*>& getSmall() const{return small;};
+
         void read() const
         {
             _lock.read();

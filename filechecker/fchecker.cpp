@@ -319,6 +319,15 @@ namespace fc
     {
         ocrfailed = 0;
         memset(roi, 0, sizeof(int) * 4);
+        if (front.getMat().empty()) {
+            std::cerr << "Open " << PIC_1 << " error.";
+        }
+        if (back.getMat().empty()) {
+            std::cerr << "Open " << PIC_2 << " error.";
+        }
+        if (board.getMat().empty()) {
+            std::cerr << "Open " << PIC_3 << " error.";
+        }
     }
 
     Item::~Item()

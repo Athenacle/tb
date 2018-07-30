@@ -28,6 +28,9 @@ int doit(const char *fn)
          << endl;
     cerr << ocr.getJson();
     ocr.clear();
+    cv::namedWindow("res", cv::WINDOW_NORMAL);
+    cv::imshow("res", i.getMat());
+    cv::waitKey(0);
     fc::OcrResult res;
     ret = i.getItemAccurateCode(fcode, bcode, price, curl, res);
     cerr << endl

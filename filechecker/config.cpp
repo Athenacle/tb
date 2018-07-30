@@ -346,6 +346,7 @@ void StartSystem(const Json::Value &jsonRoot)
         globalConfig.rawPath =
             globalConfig.rawPath.substr(globalConfig.path.length(), std::string::npos);
     }
+    chdir(globalConfig.rawPath.c_str());
 
     PrintConfigInfo(buffer, bsize);
 
