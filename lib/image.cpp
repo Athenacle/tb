@@ -745,6 +745,7 @@ namespace fc
             return false;
         }
         unlock();
+        wm.unlock();
         _l.write();
         Mat imgROI = imageMat(wmPos);
         if (marker.channels() == 3) {

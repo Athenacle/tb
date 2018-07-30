@@ -300,7 +300,9 @@ namespace fc
         ocr.getBarCode(bc);
         ocr.getPrice(this->price);
         std::swap(fc, fcode);
-        std::swap(bc, bcode);
+        if (bc == "") {
+            std::swap(bc, bcode);
+        }
         price = this->price;
     }
 
@@ -565,15 +567,17 @@ namespace fc
                 if (ostatus == -1) {
                     int t = std::pow(2, slTime);
                     int err;
-                    auto o = i->getOcrResult().getError(err);
-                    snprintf(buffer,
-                             1024,
-                             "Get Error \"%s\" (%d) from OCR Handler, Sleep for %d seconds",
-                             o,
-                             err,
-                             t);
-                    log_WARNING(buffer);
-                    sleep(t);
+                    if (curl != 0) {
+                        auto o = i->getOcrResult().getError(err);
+                        snprintf(buffer,
+                                 1024,
+                                 "Get Error \"%s\" (%d) from OCR Handler, Sleep for %d seconds",
+                                 o,
+                                 err,
+                                 t);
+                        log_WARNING(buffer);
+                        sleep(t);
+                    }
                 } else {
                     break;
                 }
@@ -583,7 +587,7 @@ namespace fc
             int price;
             string fc, bc;
             i->getCode(fc, bc, price);
-            if (fc != "" || price < 100) {
+            if (fc != "") {
                 i->SaveFile(globalConfig.productPath, globalConfig.deleteRaw);
                 std::shared_ptr<Item> iptr;
                 iptr.reset(i);
@@ -593,6 +597,13 @@ namespace fc
                 i->ocrFailed();
                 this->addItem(i);
             } else {
+                if (bc != "") {
+                    i->SaveFile(globalConfig.productPath, globalConfig.deleteRaw);
+                    std::shared_ptr<Item> iptr;
+                    iptr.reset(i);
+                    mysql(iptr);
+                    sftp(iptr);
+                }
                 size_t bsize = 512;
                 char* buf = requestMemory(bsize);
                 snprintf(buf,

@@ -143,7 +143,10 @@ namespace fc
         void buildSmall();
 
     public:
-        const std::tuple<Mat*,Mat*>& getSmall() const{return small;};
+        const std::tuple<Mat*, Mat*>& getSmall() const
+        {
+            return small;
+        };
 
         void read() const
         {

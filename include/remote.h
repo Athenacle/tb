@@ -98,6 +98,13 @@ namespace tb
         };
 #endif
 
+        class SQLObject
+        {
+        public:
+            virtual const char* getHeader() = 0;
+            virtual const char* format() = 0;
+        };
+
         class MySQLWorker : public thread
         {
             using csr = const string&;

@@ -29,41 +29,18 @@ namespace tb
     }  // namespace
     namespace utils
     {
-        void InitCoreUtilties()
-        {
-            if (__pool == nullptr) {
-                auto ___pool = reinterpret_cast<boost::pool<>*>(malloc(sizeof *__pool));
-                __pool = new (___pool) boost::pool<>(blockSize * sizeof(char), 1 << 20);
-            }
-        }
+        void InitCoreUtilties() {}
 
-        void DestroyCoreUtilties()
-        {
-            if (__pool != nullptr) {
-                delete __pool;
-                __pool = nullptr;
-            }
-        }
+        void DestroyCoreUtilties() {}
 
         char* requestMemory(unsigned long _size)
         {
-            int count = _size / blockSize;
-            if (_size % blockSize > 0) {
-                count++;
-            }
-            _m.lock();
-            auto ret = reinterpret_cast<char*>(__pool->ordered_malloc(count));
-            _m.unlock();
-            return ret;
+            return (char*)malloc(_size);
         }
 
         void releaseMemory(const void* _ptr)
         {
-            if (_ptr != nullptr) {
-                _m.lock();
-                __pool->ordered_free(const_cast<void*>(_ptr));
-                _m.unlock();
-            }
+            free((void*)_ptr);
         }
 
         int gzCompress(unsigned char* _in, size_t _in_size, unsigned char** _out)
