@@ -72,7 +72,7 @@ public:
 
     static void buildDefaultSystemConfig();
 
-    uint64_t getDirectoryID(const string&) ;
+    uint64_t getDirectoryID(const string&);
 
 
     SystemConfig()
@@ -161,6 +161,7 @@ namespace fc
         int price;
         int ocrfailed;
 
+        int roi[4];
 
     public:
         void ocrFailed()
@@ -208,7 +209,10 @@ namespace fc
         Item(const char*, const char*, const char*);
 
         void setDestPath(string&, string&, string&);
-
+        const int* getRoI() const
+        {
+            return roi;
+        }
         ~Item();
     };
 

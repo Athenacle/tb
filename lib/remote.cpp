@@ -202,7 +202,7 @@ namespace tb
         }
 
 
-        int SFTPWorker::sendFile(const char* f, const char *rf)
+        int SFTPWorker::sendFile(const char* f, const char* rf)
         {
             if (status == CONNECTION_FAILED) {
                 log_DEBUG("CONNECTION_FAILED");
@@ -235,11 +235,20 @@ namespace tb
                 snprintf(buf, bsize, "Open SCP Channel failed: %s", errString);
                 log_ERROR(buf);
                 return -1;
-            } else {
-                log_DEBUG("Open SCP Channel successfully");
             }
             errno = 0;
-            auto wrote = libssh2_channel_write(channel, file, fsize);
+            int wrote;
+            auto ptr = file;
+            auto s = fsize;
+            do {
+                wrote = libssh2_channel_write(channel, ptr, s);
+                if (wrote < 0) {
+                    break;
+                } else {
+                    ptr += wrote;
+                    s -= wrote;
+                }
+            } while (s > 0);
             if (wrote < 0) {
                 snprintf(buf, bsize, "Write file to Remote error: %s.", strerror(errno));
                 log_ERROR(buf);
@@ -252,6 +261,9 @@ namespace tb
                 snprintf(buf, bsize, "Send file %s -> %s successfully.", f, remotefile.c_str());
                 log_INFO(buf);
             }
+            char* destroyFileBuffer;
+            tb::utils::destroyFile(file, fsize, &destroyFileBuffer);
+            return ret;
         }
 
         const char* SFTPWorker::tryConnect()

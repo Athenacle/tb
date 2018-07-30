@@ -20,8 +20,7 @@ namespace only
 
     bool checkFullCode(const std::string& _code)
     {
-        static const regex fullCode("^[123][012]\\d[1234][0-9A-Z]{5}[A-Z0-9]{6}",
-                                    regex::perl);
+        static const regex fullCode("^[123][012]\\d[1234][0-9A-Z]{5}[A-Z0-9]{6}", regex::perl);
         return regex_match(_code, fullCode);
     }
 
@@ -73,6 +72,9 @@ namespace only
 
     int checkPrice(const std::string& s)
     {
+        if (s.length() < 5) {
+            return -1;
+        }
         const unsigned char* cp = reinterpret_cast<const unsigned char*>(s.c_str());
         if (cp[0] == 0xef && cp[1] == 0xbf && cp[2] == 0xa5) {
             auto price = s.substr(1, s.length());

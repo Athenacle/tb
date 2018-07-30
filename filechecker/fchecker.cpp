@@ -318,6 +318,7 @@ namespace fc
           board(PIC_3)
     {
         ocrfailed = 0;
+        memset(roi, 0, sizeof(int) * 4);
     }
 
     Item::~Item()
@@ -398,7 +399,7 @@ namespace fc
     int Item::processingOCR(int& curl)
     {
         static char buffer[1024];
-        int ret = board.getItemCode(fcode, bcode, price, curl, ocr);
+        int ret = board.getItemCode(fcode, bcode, price, curl, ocr, roi);
         snprintf(buffer,
                  1024,
                  "Get Item: %s ret-> %d, fc -> %s, bc -> %s, price -> %d",
@@ -457,7 +458,7 @@ namespace fc
         while (_q.size() > 0) {
             string sql =
                 "INSERT INTO `Clothes` (`BarCode`, `FullCode`, `FrontPath`, `BackPath`, "
-                "`BoardPath`, `BoardPrice`, `OcrResult`, `DirectoryID`) VALUES ";
+                "`BoardPath`, `BoardPrice`, `OcrResult`, `DirectoryID`, `RoI`) VALUES ";
 
             int i = 0;
             do {
@@ -482,9 +483,10 @@ namespace fc
                 string parent;
                 tb::utils::getParentDir(pic[0], parent);
                 uint64_t did = globalConfig.getDirectoryID(parent);
+                auto roi = p->getRoI();
                 snprintf(buffer,
                          bsize,
-                         "('%s', '%s', '%s', '%s','%s', %d, '%s', %ld)",
+                         "('%s', '%s', '%s', '%s','%s', %d, '%s', %ld, '%d:%d:%d:%d')",
                          barcode.c_str(),
                          fullcode.c_str(),
                          pic[0],
@@ -492,7 +494,11 @@ namespace fc
                          pic[2],
                          price,
                          json.c_str(),
-                         did);
+                         did,
+                         roi[0],
+                         roi[1],
+                         roi[2],
+                         roi[3]);
                 sql = sql + buffer + ",";
                 i++;
             } while (i < 10 && _q.size() > 0);

@@ -108,7 +108,7 @@ namespace fc
         int WriteToFile(const char* = nullptr);
 
         int getItemAccurateCode(string&, string&, int& price, int&, OcrResult&);
-        int getItemCode(string&, string&, int& price, int&, OcrResult&);
+        int getItemCode(string&, string&, int& price, int&, OcrResult&, int* = nullptr);
         int AddWaterPrint();
     };
 

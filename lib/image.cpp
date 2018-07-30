@@ -164,7 +164,7 @@ namespace fc
 
     Image::Image(const char* _fname) : BaseImage(_fname), success(true) {}
 
-    int Image::getItemAccurateCode(string& bc, string& fc, int& p, int& c,OcrResult& res)
+    int Image::getItemAccurateCode(string& bc, string& fc, int& p, int& c, OcrResult& res)
     {
         int ret = ProcessingOCR(filename, res, c, true);
         res.getBarCode(bc);
@@ -182,7 +182,8 @@ namespace fc
         return ret;
     }
 
-    int Image::getItemCode(std::string& fcode, std::string& bcode, int& price, int& c,OcrResult& result)
+    int Image::getItemCode(
+                           std::string& fcode, std::string& bcode, int& price, int& c, OcrResult& result, int *roiArray)
     {
         cv::Rect rect;
         price = 0;
@@ -200,6 +201,12 @@ namespace fc
         zstatus = zbarCodeIdentify(imageMat, rect, bcode);
         tstatus = ProcessingOCR(this->filename, result, c);
 
+        if (roiArray != nullptr){
+            roiArray[0] = rect.x;
+            roiArray[1] = rect.y;
+            roiArray[2] = rect.height;
+            roiArray[3] = rect.width;
+        }
         if (zstatus == 1
             && only::checkBarCodeValidate(bcode)) {  // zbar success. Bar Code MUST be TRUE.
             ret = ret | ZBAR_OK;                     // 1
@@ -584,7 +591,7 @@ namespace fc
             result = client->accurate_basic(image, options);
         }
         vstring.clear();
-        if (result.isMember("curl_error_code")){
+        if (result.isMember("curl_error_code")) {
             curl = result["curl_error_code"].asInt();
             _errcode = 1;
             _errmessage = ocrErrorTable.at(_errcode);
@@ -629,6 +636,8 @@ namespace fc
     {
         auto& m = WaterMarker::getMarkers();
         for (auto wm : m) {
+            if (wm == nullptr)
+                continue;
             success = success && addWaterMarker(*wm);
         }
         return m.size();
