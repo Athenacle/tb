@@ -294,8 +294,18 @@ void StartSystem(const Json::Value &jsonRoot)
     globalConfig.uid = uid;
     globalConfig.gid = gid;
     globalConfig.useInotify = useInotify;
-    globalConfig.rawPath = (rawDir);
-    globalConfig.productPath = (productDir);
+
+    char currentD[512];
+    char next[512];
+    getcwd(currentD, 512);
+    chdir(rawDir.c_str());
+    getcwd(next, 512);
+    globalConfig.rawPath = next;
+    chdir(currentD);
+    chdir(productDir.c_str());
+    getcwd(next, 512);
+    globalConfig.productPath = next;
+    chdir(currentD);
 
     size_t bsize = dir.length() + 4096;
     char *buffer = requestMemory(bsize);
@@ -333,22 +343,9 @@ void StartSystem(const Json::Value &jsonRoot)
     getcwd(proPointer, bsize >> 2);
     globalConfig.productPath = proPointer;
     chdir(current);
-    globalConfig.productPrefixLength = globalConfig.productPath.find_last_of(productDir) + 1;
+    globalConfig.productPrefixLength = globalConfig.productPath.length();
 
     globalConfig.cwdMutex.unlock();
-    auto rawStart = globalConfig.rawPath.find_first_of(globalConfig.path);
-    if (rawStart != 0) {
-        sprintf(buffer,
-                "Raw Image Path %s must be subdirectory of Root Path %s",
-                globalConfig.rawPath.c_str(),
-                globalConfig.path.c_str());
-        log_FATAL(buffer);
-        exit(-1);
-    } else {
-        globalConfig.path = "";
-        globalConfig.rawPath =
-            globalConfig.rawPath.substr(globalConfig.path.length(), std::string::npos);
-    }
     PrintConfigInfo(buffer, bsize);
 
     globalConfig.cwdMutex.lock();

@@ -12,6 +12,7 @@
 #include <openssl/bio.h>
 #include <openssl/buffer.h>
 #include <openssl/evp.h>
+#include <openssl/md5.h>
 #include <zlib.h>
 #include <boost/pool/pool.hpp>
 
@@ -53,6 +54,38 @@ namespace tb
             } else {
                 return -1;
             }
+        }
+
+        void MD5Hash(const char* src, size_t size, std::string& out)
+        {
+            MD5_CTX ctx;
+
+            unsigned char md[16] = {0};
+            char tmp[8] = {0};
+
+            MD5_Init(&ctx);
+            MD5_Update(&ctx, src, size);
+            MD5_Final(md, &ctx);
+
+            for (int i = 0; i < 16; ++i) {
+                memset(tmp, 0, sizeof(tmp));
+                sprintf(tmp, "%02x", md[i]);
+                out += tmp;
+            }
+        }
+
+        int MD5HashFile(const char* fname, std::string& out)
+        {
+            out = "";
+            char* err;
+            size_t size;
+            void* ptr = openFile(fname, size, &err);
+            if (ptr == nullptr) {
+                return -1;
+            }
+            MD5Hash(reinterpret_cast<char*>(ptr), size, out);
+            destroyFile(ptr, size, &err);
+            return 0;
         }
 
         int base64Encode(unsigned char* _in, size_t _in_size, char** _out, bool _newline)

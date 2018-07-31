@@ -51,6 +51,10 @@ namespace tb
 
         int gzCompress(unsigned char*, size_t, unsigned char**);
 
+        void MD5Hash(const char*, size_t, std::string&);
+
+        int MD5HashFile(const char*, std::string&);
+
         int base64Encode(unsigned char*, size_t, char**, bool = false);
 
         size_t checkFileCanRead(const char*, char*, size_t);

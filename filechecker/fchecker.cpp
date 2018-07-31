@@ -106,17 +106,14 @@ namespace fc
             const char* fname = entry->d_name;
             if (*fname == '.') {
                 continue;
-                // skip file name started with .
             } else {
                 if (strcmp(parentPTR, "") == 0) {
                     name = fname;
                 } else {
                     name = string(parentPTR) + "/" + fname;
                 }
-                globalConfig.cwdMutex.lock();
                 struct stat st;
                 int statRet = stat(name.c_str(), &st);
-                globalConfig.cwdMutex.unlock();
                 if (statRet == -1) {
                     char* buffer = requestMemory(length + nameMax + 128);
                     sprintf(buffer,
@@ -351,38 +348,38 @@ namespace fc
         std::swap(destPIC[2], p3);
     }
 
-    void Item::SaveFile(const string& product, bool del)
+    void Item::SaveFile(const string& product, bool del, const string& code)
     {
+        static int incr = 0;
         if (!ok) {
             return;
         }
-        string p1 = product + "/" + PIC_1;
+        string prefix;
+        if (code == "") {
+            char buf[12];
+            snprintf(buf, 12, "%d", incr);
+            prefix = "unknown_code_";
+            prefix += buf;
+            incr++;
+        } else {
+            prefix = code;
+        }
+        string p1 = prefix + "_1.jpg";
         size_t bsize = 1024;
         char* buffer = tb::utils::requestMemory(bsize);
-        auto ret = tb::utils::mkParentDir(p1.c_str());
-        if (ret != 0) {
-            snprintf(buffer,
-                     bsize,
-                     "Create Parent Directory of file \"%s\" failed: %s",
-                     p1.c_str(),
-                     strerror(ret));
-            log_ERROR(buffer);
-            return;
-        }
-        int saved = 0;
-        string parent;
+
         globalConfig.cwdMutex.lock();
-        tb::utils::getParentDir(p1, parent);
         getcwd(buffer, bsize);
-        chdir(parent.c_str());
+        chdir(globalConfig.productPath.c_str());
+        int saved = 0;
 
-        saved += front.WriteToFile(p1.c_str());
+        saved += front.WriteToFile((product + "/" + p1).c_str());
 
-        string p2 = product + "/" + PIC_2;
+        string p2 = prefix + "_2.jpg";
         saved += back.WriteToFile(p2.c_str());
 
-        string p3 = product + "/" + PIC_3;
-        saved += board.WriteToFile(p3.c_str());
+        string p3 = prefix + "_3.jpg";
+        saved += board.WriteToFile((product + "/" + p3).c_str());
 
         chdir(buffer);
         if (del) {
@@ -390,24 +387,23 @@ namespace fc
             unlink(PIC_2);
             unlink(PIC_3);
         }
-        snprintf(buffer,
-                 bsize,
-                 "Saving %s -> %s, Status %d",
-                 PIC_1,
-                 (product + "/" + PIC_1).c_str(),
-                 saved);
+        snprintf(buffer, bsize, "Saving %s -> %s, Status %d", PIC_1, p1.c_str(), saved);
         setDestPath(p1, p2, p3);
         log_DEBUG(buffer);
         globalConfig.cwdMutex.unlock();
     }
 
-    int Item::processingAccurateOCR(int& curl)
+    int Item::processingAccurateOCR(int& curl, bool accur)
     {
         static char buffer[1024];
-        int ret = board.getItemAccurateCode(fcode, bcode, price, curl, ocr);
+        int ret = ProcessingOCR(PIC_3, ocr, curl, accur);
+        ocr.getBarCode(bcode);
+        ocr.getFullCode(fcode);
+        ocr.getPrice(price);
         snprintf(buffer,
                  1024,
-                 "Get Item Accurate: %s ret -> %d : fc-> %s, bc -> %s, price -> %d",
+                 "Get Item %s: %s ret -> %d : fc-> %s, bc -> %s, price -> %d",
+                 accur ? "Accurate" : "",
                  PIC_3,
                  ret,
                  fcode.c_str(),
@@ -419,18 +415,7 @@ namespace fc
 
     int Item::processingOCR(int& curl)
     {
-        static char buffer[1024];
-        int ret = board.getItemCode(fcode, bcode, price, curl, ocr, roi);
-        snprintf(buffer,
-                 1024,
-                 "Get Item: %s ret-> %d, fc -> %s, bc -> %s, price -> %d",
-                 PIC_3,
-                 ret,
-                 fcode.c_str(),
-                 bcode.c_str(),
-                 price);
-        log_INFO(buffer);
-        return ret;
+        return processingAccurateOCR(curl, false);
     }
 
     int Item::processing()
@@ -445,8 +430,6 @@ namespace fc
 #ifdef BUILD_WITH_LIBSSH
     void* SFTP::start(void*, void*, void*)
     {
-        static int prefix = globalConfig.productPrefixLength;
-        static const auto end = std::string::npos;
         do {
             _cv.wait(_m, [this] { return _q.size() > 0; });
 
@@ -458,13 +441,17 @@ namespace fc
                 break;
             }
 
+            globalConfig.cwdMutex.lock();
+            char buffer[256];
+            getcwd(buffer, 256);
             string pname[3];
-            const char* rawName[3];
-            p->getName(rawName[0], rawName[1], rawName[2]);
+            chdir(globalConfig.productPath.c_str());
             p->getDestName(pname[0], pname[1], pname[2]);
-            sftp.sendFile(pname[0].c_str(), pname[0].substr(prefix, end).c_str());
-            sftp.sendFile(pname[1].c_str(), pname[1].substr(prefix, end).c_str());
-            sftp.sendFile(pname[2].c_str(), pname[2].substr(prefix, end).c_str());
+            sftp.sendFile(pname[0].c_str(), pname[0].c_str());
+            sftp.sendFile(pname[1].c_str(), pname[1].c_str());
+            sftp.sendFile(pname[2].c_str(), pname[2].c_str());
+            chdir(buffer);
+            globalConfig.cwdMutex.unlock();
         } while (true);
         return nullptr;
     }
@@ -480,10 +467,8 @@ namespace fc
             string sql =
                 "INSERT INTO `Clothes` (`BarCode`, `FullCode`, `FrontPath`, `BackPath`, "
                 "`BoardPath`, `BoardPrice`, `OcrResult`, `DirectoryID`, `RoI`) VALUES ";
-
-            int i = 0;
+            int i = 1;
             do {
-                i = 0;
                 auto p = _q.front();
                 _q.pop();
                 if (p == nullptr) {
@@ -494,25 +479,39 @@ namespace fc
                         continue;
                     }
                 }
-                const char* pic[3];
+                string pic[3];
+                string md5[3];
                 string barcode, fullcode;
                 int price;
                 string json;
-                p->getName(pic[0], pic[1], pic[2]);
+                const char* pic_raw_name[3];
+                p->getName(pic_raw_name[0], pic_raw_name[1], pic_raw_name[2]);
+                string fnmae(pic_raw_name[0]);
+
+                p->getDestName(pic[0], pic[1], pic[2]);
                 p->getOcrJson(json);
                 p->getCode(fullcode, barcode, price);
+                for (int i = 0; i < 3; i++) {
+                    string fn = globalConfig.productPath + "/" + pic[i];
+                    tb::utils::MD5HashFile(fn.c_str(), md5[i]);
+                }
                 string parent;
-                tb::utils::getParentDir(pic[0], parent);
+                string raw_name = pic_raw_name[0];
+                raw_name = raw_name.substr(globalConfig.rawPath.length(), std::string::npos);
+                tb::utils::getParentDir(raw_name, parent);
                 uint64_t did = globalConfig.getDirectoryID(parent);
                 auto roi = p->getRoI();
                 snprintf(buffer,
                          bsize,
-                         "('%s', '%s', '%s', '%s','%s', %d, '%s', %ld, '%d:%d:%d:%d')",
+                         "('%s', '%s', '%s|%s', '%s|%s','%s|%s', %d, '%s', %ld, '%d:%d:%d:%d')",
                          barcode.c_str(),
                          fullcode.c_str(),
-                         pic[0],
-                         pic[1],
-                         pic[2],
+                         pic[0].c_str(),
+                         md5[0].c_str(),
+                         pic[1].c_str(),
+                         md5[1].c_str(),
+                         pic[2].c_str(),
+                         md5[2].c_str(),
                          price,
                          json.c_str(),
                          did,
@@ -547,7 +546,6 @@ namespace fc
 
     void* OcrHandlerQueue::start(void*, void*, void*)
     {
-        static char buffer[1024];
         do {
             _cv.wait(_m, [this] { return _q.size() > 0; });
             auto i = _q.front();
@@ -567,62 +565,39 @@ namespace fc
             int f = i->getFailed();
             int curl;
 
-            auto func = f == 0 ? std::bind(&Item::processingOCR, i, std::placeholders::_1)
-                               : std::bind(&Item::processingAccurateOCR, i, std::placeholders::_1);
-
-            int slTime = 0;
-            do {
-                int ostatus = 0;
-                ostatus = func(curl);
-                if (ostatus == -1) {
-                    int t = std::pow(2, slTime);
-                    int err;
-                    if (curl != 0) {
-                        auto o = i->getOcrResult().getError(err);
-                        snprintf(buffer,
-                                 1024,
-                                 "Get Error \"%s\" (%d) from OCR Handler, Sleep for %d seconds",
-                                 o,
-                                 err,
-                                 t);
-                        log_WARNING(buffer);
-                        sleep(t);
-                    }
-                } else {
-                    break;
-                }
-                slTime++;
-            } while (true);
+            string bc, fc, ocrBc;
+            i->getBarCode(bc);
+            i->processingAccurateOCR(curl, f > 4);
 
             int price;
-            string fc, bc;
             i->getCode(fc, bc, price);
             if (fc != "") {
-                i->SaveFile(globalConfig.productPath, globalConfig.deleteRaw);
+                i->SaveFile(globalConfig.productPath, globalConfig.deleteRaw, fc);
                 std::shared_ptr<Item> iptr;
                 iptr.reset(i);
                 mysql(iptr);
                 sftp(iptr);
-            } else if (f < 3) {
+            } else if (f < 6) {
                 i->ocrFailed();
                 this->addItem(i);
             } else {
                 if (bc != "") {
-                    i->SaveFile(globalConfig.productPath, globalConfig.deleteRaw);
+                    i->SaveFile(globalConfig.productPath, globalConfig.deleteRaw, bc);
                     std::shared_ptr<Item> iptr;
                     iptr.reset(i);
                     mysql(iptr);
                     sftp(iptr);
+                } else {
+                    size_t bsize = 512;
+                    char* buf = requestMemory(bsize);
+                    snprintf(buf,
+                             bsize,
+                             "Get Ocr Result of file %s failed 5 times. Skip this file.",
+                             i->getBoardName());
+                    log_WARNING(buf);
+                    releaseMemory(buf);
+                    delete i;
                 }
-                size_t bsize = 512;
-                char* buf = requestMemory(bsize);
-                snprintf(buf,
-                         bsize,
-                         "Get Ocr Result of file %s failed 5 times. Skip this file.",
-                         i->getBoardName());
-                log_WARNING(buf);
-                releaseMemory(buf);
-                delete i;
             }
         } while (true);
     }
@@ -637,7 +612,9 @@ namespace fc
 
     void Start(FcHandler& handler)
     {
-        handler.AddDirectory("./");
+        char buffer[256];
+        getcwd(buffer, 256);
+        handler.AddDirectory(buffer);
     }
 }  // namespace fc
 

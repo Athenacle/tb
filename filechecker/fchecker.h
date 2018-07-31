@@ -150,6 +150,7 @@ namespace fc
         const char* PIC_3;
 
         string destPIC[3];
+
         bool ok;
         Image front;
         Image back;
@@ -178,8 +179,15 @@ namespace fc
             return this->ocrfailed;
         }
 
-        int processingAccurateOCR(int&);
+        int processingAccurateOCR(int&, bool = false);
         int processingOCR(int&);
+
+        int getBarCode(string& c)
+        {
+            auto ret = board.getBarCode(c, roi);
+            this->bcode = c;
+            return ret;
+        }
 
         void getCode(string&, string&, int&);
 
@@ -209,7 +217,7 @@ namespace fc
             p3 = PIC_3;
         }
         int processing();
-        void SaveFile(const string& = "", bool = false);
+        void SaveFile(const string& = "", bool = false, const string& code = "");
 
         Item(const char*, const char*, const char*);
 

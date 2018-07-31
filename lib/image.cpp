@@ -189,6 +189,25 @@ namespace fc
         return ret;
     }
 
+    int Image::getBarCode(std::string& bcode, int* roi)
+    {
+        if (roi != nullptr) {
+            memset(roi, 0, 4 * sizeof(int));
+        }
+        cv::Rect rect;
+        int ret = opencvFindBarCodeROI(imageMat, rect);
+        if (ret == -1) {
+            return 0;
+        }
+        if (roi != nullptr) {
+            roi[0] = rect.x;
+            roi[1] = rect.y;
+            roi[2] = rect.width;
+            roi[3] = rect.height;
+        }
+        return zbarCodeIdentify(imageMat, rect, bcode);
+    }
+
     int Image::getItemCode(std::string& fcode,
                            std::string& bcode,
                            int& price,
@@ -199,17 +218,12 @@ namespace fc
         cv::Rect rect;
         price = 0;
         read();
-        int ret = opencvFindBarCodeROI(imageMat, rect);
-        if (ret == -1) {
-            return 0;
-        }
         Mat tmp = imageMat(rect);
         int zstatus = -1;
         int tstatus = -1;
 
-        ret = 0;
+        int ret = 0;
         std::string teFCode, teBCode;
-        zstatus = zbarCodeIdentify(imageMat, rect, bcode);
         tstatus = ProcessingOCR(this->filename, result, c);
 
         if (roiArray != nullptr) {

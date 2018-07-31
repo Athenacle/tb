@@ -1,4 +1,3 @@
-
 #include "id.h"
 #include <boost/algorithm/string.hpp>
 #include <boost/regex.hpp>
@@ -20,7 +19,8 @@ namespace only
 
     bool checkFullCode(const std::string& _code)
     {
-        static const regex fullCode("^[123][012]\\d[1234][0-9A-Z]{5}[A-Z0-9]{6}", regex::perl);
+        //static const regex fullCode("^[123][012]\\d[1234][0-9A-Z]{5}[A-Z0-9]{6}", regex::perl);
+        static const regex fullCode("^[0-9A-Z]{15}$", regex::perl);
         return regex_match(_code, fullCode);
     }
 
