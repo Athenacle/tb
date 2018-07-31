@@ -97,9 +97,7 @@ namespace fc
         auto length = strlen(*parent.get());
         string name;
         do {
-            globalConfig.cwdMutex.lock();
             dirent* entry = readdir(dir);
-            globalConfig.cwdMutex.unlock();
             if (entry == nullptr) {
                 break;
             }
@@ -156,9 +154,7 @@ namespace fc
                 i++;
                 auto p3 = IMGs[i];
                 i++;
-                globalConfig.cwdMutex.lock();
                 auto it = new Item(std::get<FNAME>(p1), std::get<FNAME>(p2), std::get<FNAME>(p3));
-                globalConfig.cwdMutex.unlock();
                 if (it->getOK()) {
                     ItemSchedular::getSchedular().addItem(it);
                 } else {
@@ -341,56 +337,46 @@ namespace fc
         releaseMemory(PIC_3);
     }
 
-    void Item::setDestPath(string& p1, string& p2, string& p3)
+    void Item::setDestPath(path& p1, path& p2, path& p3)
     {
-        std::swap(destPIC[0], p1);
-        std::swap(destPIC[1], p2);
-        std::swap(destPIC[2], p3);
+        swap(destPIC[0], p1);
+        swap(destPIC[1], p2);
+        swap(destPIC[2], p3);
     }
 
-    void Item::SaveFile(const string& product, bool del, const string& code)
+    void Item::SaveFile(const path& product, bool del, const string& code)
     {
-        static int incr = 0;
+        const static auto raw = globalConfig.rawPath;
+
         if (!ok) {
             return;
         }
-        string prefix;
-        if (code == "") {
-            char buf[12];
-            snprintf(buf, 12, "%d", incr);
-            prefix = "unknown_code_";
-            prefix += buf;
-            incr++;
-        } else {
-            prefix = code;
-        }
-        string p1 = prefix + "_1.jpg";
+
+        path destName[3] = {relative(PIC_1, raw), relative(PIC_2, raw), relative(PIC_3, raw)};
+
+        path p1 = product / destName[0];
+        path p2 = product / destName[1];
+        path p3 = product / destName[2];
+
         size_t bsize = 1024;
         char* buffer = tb::utils::requestMemory(bsize);
 
-        globalConfig.cwdMutex.lock();
-        getcwd(buffer, bsize);
-        chdir(globalConfig.productPath.c_str());
         int saved = 0;
 
-        saved += front.WriteToFile((product + "/" + p1).c_str());
+        saved += front.WriteToFile(p1.c_str());
 
-        string p2 = prefix + "_2.jpg";
         saved += back.WriteToFile(p2.c_str());
 
-        string p3 = prefix + "_3.jpg";
-        saved += board.WriteToFile((product + "/" + p3).c_str());
+        saved += board.WriteToFile(p3.c_str());
 
-        chdir(buffer);
         if (del) {
             unlink(PIC_1);
             unlink(PIC_2);
             unlink(PIC_3);
         }
         snprintf(buffer, bsize, "Saving %s -> %s, Status %d", PIC_1, p1.c_str(), saved);
-        setDestPath(p1, p2, p3);
+        setDestPath(destName[0], destName[1], destName[2]);
         log_DEBUG(buffer);
-        globalConfig.cwdMutex.unlock();
     }
 
     int Item::processingAccurateOCR(int& curl, bool accur)
@@ -430,6 +416,7 @@ namespace fc
 #ifdef BUILD_WITH_LIBSSH
     void* SFTP::start(void*, void*, void*)
     {
+        static auto product = globalConfig.productPath;
         do {
             _cv.wait(_m, [this] { return _q.size() > 0; });
 
@@ -440,18 +427,12 @@ namespace fc
             if (p == nullptr) {
                 break;
             }
-
-            globalConfig.cwdMutex.lock();
-            char buffer[256];
-            getcwd(buffer, 256);
-            string pname[3];
-            chdir(globalConfig.productPath.c_str());
+            path pname[3];
             p->getDestName(pname[0], pname[1], pname[2]);
-            sftp.sendFile(pname[0].c_str(), pname[0].c_str());
-            sftp.sendFile(pname[1].c_str(), pname[1].c_str());
-            sftp.sendFile(pname[2].c_str(), pname[2].c_str());
-            chdir(buffer);
-            globalConfig.cwdMutex.unlock();
+
+            for (auto& f : pname) {
+                sftp.sendFile((product / f).c_str(), f.c_str());
+            }
         } while (true);
         return nullptr;
     }
@@ -479,7 +460,7 @@ namespace fc
                         continue;
                     }
                 }
-                string pic[3];
+                path pic[3];
                 string md5[3];
                 string barcode, fullcode;
                 int price;
@@ -492,14 +473,11 @@ namespace fc
                 p->getOcrJson(json);
                 p->getCode(fullcode, barcode, price);
                 for (int i = 0; i < 3; i++) {
-                    string fn = globalConfig.productPath + "/" + pic[i];
+                    auto fn = globalConfig.productPath / pic[i];
                     tb::utils::MD5HashFile(fn.c_str(), md5[i]);
                 }
-                string parent;
-                string raw_name = pic_raw_name[0];
-                raw_name = raw_name.substr(globalConfig.rawPath.length(), std::string::npos);
-                tb::utils::getParentDir(raw_name, parent);
-                uint64_t did = globalConfig.getDirectoryID(parent);
+                path parent = pic[0].parent_path();
+                uint64_t did = globalConfig.getDirectoryID(parent.native());
                 auto roi = p->getRoI();
                 snprintf(buffer,
                          bsize,

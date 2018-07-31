@@ -81,7 +81,13 @@ namespace only
 
         if (regex_search(start, end, where, price, flags)) {
             auto p = where[1];
-            return stoi(p);
+            int ret = -1;
+            try {
+                ret = stoi(p);
+            } catch (std::invalid_argument& e) {
+                ret = -1;
+            }
+            return ret;
         } else {
             return -1;
         }

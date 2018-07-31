@@ -23,6 +23,9 @@
 
 #include <cstdint>
 
+#include <boost/filesystem.hpp>
+
+using namespace boost::filesystem;
 using std::queue;
 using std::string;
 
@@ -38,10 +41,9 @@ private:
     mutable tb::thread_ns::mutex _m;
 
 public:
-    tb::thread_ns::mutex cwdMutex;
-    string path;
-    string rawPath;
-    string productPath;
+    path rootPath;
+    path rawPath;
+    path productPath;
     bool chRoot;
     bool useInotify;
     bool deleteRaw;
@@ -149,7 +151,7 @@ namespace fc
         const char* PIC_2;
         const char* PIC_3;
 
-        string destPIC[3];
+        path destPIC[3];
 
         bool ok;
         Image front;
@@ -203,7 +205,7 @@ namespace fc
             return PIC_3;
         }
 
-        void getDestName(string& p1, string& p2, string& p3)
+        void getDestName(path& p1, path& p2, path& p3)
         {
             p1 = destPIC[0];
             p2 = destPIC[1];
@@ -217,11 +219,12 @@ namespace fc
             p3 = PIC_3;
         }
         int processing();
-        void SaveFile(const string& = "", bool = false, const string& code = "");
+        void SaveFile(const path&, bool = false, const string& code = "");
 
         Item(const char*, const char*, const char*);
 
-        void setDestPath(string&, string&, string&);
+        void setDestPath(path&, path&, path&);
+
         const int* getRoI() const
         {
             return roi;

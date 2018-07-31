@@ -27,7 +27,7 @@ namespace
     {
         snprintf(buffer, bsize, "System Configuration:");
         log_INFO(buffer);
-        snprintf(buffer, bsize, "\trootDirectory: %s", globalConfig.path.c_str());
+        snprintf(buffer, bsize, "\trootDirectory: %s", globalConfig.rootPath.c_str());
         log_INFO(buffer);
         snprintf(buffer, bsize, "\trawDirectory: %s", globalConfig.rawPath.c_str());
         log_INFO(buffer);
@@ -290,7 +290,7 @@ void StartSystem(const Json::Value &jsonRoot)
     getValue(delete, root, Bool, globalConfig.deleteRaw, false);
 
     globalConfig.threadCount = workCount;
-    globalConfig.path = (dir);
+    globalConfig.rootPath = (dir);
     globalConfig.uid = uid;
     globalConfig.gid = gid;
     globalConfig.useInotify = useInotify;
@@ -306,10 +306,8 @@ void StartSystem(const Json::Value &jsonRoot)
     getcwd(next, 512);
     globalConfig.productPath = next;
     chdir(currentD);
-
     size_t bsize = dir.length() + 4096;
     char *buffer = requestMemory(bsize);
-
 #ifdef USE_INOTIFY
     if (useInotify) {
         globalConfig.inotifyFD = inotify_init();
@@ -317,13 +315,10 @@ void StartSystem(const Json::Value &jsonRoot)
     inotify_add_watch(globalConfig.inotifyFD, dir.c_str(), IN_CREATE | IN_MODIFY | IN_ONLYDIR);
 #endif
 
-    tb::utils::formatDirectoryPath(globalConfig.path);
-    tb::utils::formatDirectoryPath(globalConfig.rawPath);
-    tb::utils::formatDirectoryPath(globalConfig.productPath);
-
     const auto pro = globalConfig.productPath.c_str();
     struct stat st;
-    tb::utils::mkParentDir(globalConfig.productPath);
+
+    create_directory(globalConfig.productPath.parent_path());
     if (stat(pro, &st) == -1) {
         if (errno == ENONET) {
             mkdir(pro, 0755);
@@ -334,23 +329,9 @@ void StartSystem(const Json::Value &jsonRoot)
             log_FATAL(buffer);
         }
     }
-    auto proPointer = buffer + (bsize >> 2);
-    auto current = buffer;
-
-    globalConfig.cwdMutex.lock();
-    getcwd(current, bsize >> 2);
-    chdir(pro);
-    getcwd(proPointer, bsize >> 2);
-    globalConfig.productPath = proPointer;
-    chdir(current);
-    globalConfig.productPrefixLength = globalConfig.productPath.length();
-
-    globalConfig.cwdMutex.unlock();
     PrintConfigInfo(buffer, bsize);
 
-    globalConfig.cwdMutex.lock();
     auto chret = chdir(globalConfig.rawPath.c_str());
-    globalConfig.cwdMutex.unlock();
     if (chret == -1) {
         sprintf(buffer,
                 "Change directory to %s failed: %s",
@@ -451,7 +432,7 @@ uint64_t SystemConfig::getDirectoryID(const string &p)
 void SystemConfig::buildDefaultSystemConfig()
 {
     auto g = ::globalConfig;
-    g.path = g.rawPath = g.productPath = g.mysqlAddress = g.mysqlUserName = g.mysqlPassword =
+    g.rootPath = g.rawPath = g.productPath = g.mysqlAddress = g.mysqlUserName = g.mysqlPassword =
         g.mysqlDB = std::string(20, ' ');
     g.mysqlEnable = g.useInotify = g.mysqlCompress = true;
     g.uid = g.gid = -1;

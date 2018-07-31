@@ -298,9 +298,9 @@ namespace fc
 
     bool OcrResult::__find(std::string& _code, std::function<bool(const std::string&)> fn) const
     {
-        auto c = std::find_if(words.cbegin(), words.cend(), fn);
+        auto c = std::find_if(words.crbegin(), words.crend(), fn);
         bool ret;
-        if (c != words.end()) {
+        if (c != words.crend()) {
             _code = *c;
             ret = true;
         } else {
