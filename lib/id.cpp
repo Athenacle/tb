@@ -72,13 +72,18 @@ namespace only
 
     int checkPrice(const std::string& s)
     {
-        if (s.length() < 5) {
+        static const regex price("^￥(\\d*)$", regex::perl);
+        auto start = s.cbegin();
+        auto end = s.cend();
+
+        boost::match_results<decltype(start)> where;
+        boost::match_flag_type flags = boost::match_default;
+
+        if (regex_search(start, end, where, price, flags)) {
+            auto p = where[1];
+            return stoi(p);
+        } else {
             return -1;
         }
-        const unsigned char* cp = reinterpret_cast<const unsigned char*>(s.c_str());
-        if (cp[0] == 0xef && cp[1] == 0xbf && cp[2] == 0xa5) {
-            return atoi(s.c_str() + 3);
-        }
-        return -1;
     }
 }  // namespace only
