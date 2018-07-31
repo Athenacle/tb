@@ -50,7 +50,7 @@ namespace only
 
     bool checkFullBarCode(const std::string& f, const std::string& b)
     {
-        return f.substr(0, 8) == b.substr(0, 8);
+        return (f.length() > 8 && b.length() >= 8) && (f.substr(0, 8) == b.substr(0, 8));
     }
 
     bool checkOcrOutput(const char* ocr, std::string& fcode, std::string& bcode)
@@ -77,7 +77,6 @@ namespace only
         }
         const unsigned char* cp = reinterpret_cast<const unsigned char*>(s.c_str());
         if (cp[0] == 0xef && cp[1] == 0xbf && cp[2] == 0xa5) {
-            auto price = s.substr(1, s.length());
             return atoi(s.c_str() + 3);
         }
         return -1;

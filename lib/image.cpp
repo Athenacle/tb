@@ -308,7 +308,11 @@ namespace fc
 
     bool OcrResult::getPrice(int& p) const
     {
+        p = -1;
         constexpr auto cp = only::checkPrice;
+        if (words.size() == 0) {
+            return false;
+        }
         auto c = std::find_if(words.cbegin(), words.cend(), [&](auto& p) { return cp(p) != -1; });
         if (c != words.cend()) {
             p = cp(*c);

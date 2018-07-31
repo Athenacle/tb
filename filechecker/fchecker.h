@@ -38,6 +38,7 @@ private:
     mutable tb::thread_ns::mutex _m;
 
 public:
+    tb::thread_ns::mutex cwdMutex;
     string path;
     string rawPath;
     string productPath;
@@ -149,7 +150,7 @@ namespace fc
         const char* PIC_3;
 
         string destPIC[3];
-
+        bool ok;
         Image front;
         Image back;
         Image board;
@@ -164,6 +165,10 @@ namespace fc
         int roi[4];
 
     public:
+        bool getOK() const
+        {
+            return ok;
+        }
         void ocrFailed()
         {
             this->ocrfailed++;

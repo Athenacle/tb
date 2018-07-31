@@ -327,12 +327,15 @@ void StartSystem(const Json::Value &jsonRoot)
     auto proPointer = buffer + (bsize >> 2);
     auto current = buffer;
 
+    globalConfig.cwdMutex.lock();
     getcwd(current, bsize >> 2);
     chdir(pro);
     getcwd(proPointer, bsize >> 2);
     globalConfig.productPath = proPointer;
     chdir(current);
     globalConfig.productPrefixLength = globalConfig.productPath.find_last_of(productDir) + 1;
+
+    globalConfig.cwdMutex.unlock();
     auto rawStart = globalConfig.rawPath.find_first_of(globalConfig.path);
     if (rawStart != 0) {
         sprintf(buffer,
@@ -346,11 +349,12 @@ void StartSystem(const Json::Value &jsonRoot)
         globalConfig.rawPath =
             globalConfig.rawPath.substr(globalConfig.path.length(), std::string::npos);
     }
-    chdir(globalConfig.rawPath.c_str());
-
     PrintConfigInfo(buffer, bsize);
 
-    if (chdir(globalConfig.rawPath.c_str()) == -1) {
+    globalConfig.cwdMutex.lock();
+    auto chret = chdir(globalConfig.rawPath.c_str());
+    globalConfig.cwdMutex.unlock();
+    if (chret == -1) {
         sprintf(buffer,
                 "Change directory to %s failed: %s",
                 globalConfig.rawPath.c_str(),

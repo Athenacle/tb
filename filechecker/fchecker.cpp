@@ -97,7 +97,9 @@ namespace fc
         auto length = strlen(*parent.get());
         string name;
         do {
+            globalConfig.cwdMutex.lock();
             dirent* entry = readdir(dir);
+            globalConfig.cwdMutex.unlock();
             if (entry == nullptr) {
                 break;
             }
@@ -111,8 +113,10 @@ namespace fc
                 } else {
                     name = string(parentPTR) + "/" + fname;
                 }
+                globalConfig.cwdMutex.lock();
                 struct stat st;
                 int statRet = stat(name.c_str(), &st);
+                globalConfig.cwdMutex.unlock();
                 if (statRet == -1) {
                     char* buffer = requestMemory(length + nameMax + 128);
                     sprintf(buffer,
@@ -155,8 +159,14 @@ namespace fc
                 i++;
                 auto p3 = IMGs[i];
                 i++;
+                globalConfig.cwdMutex.lock();
                 auto it = new Item(std::get<FNAME>(p1), std::get<FNAME>(p2), std::get<FNAME>(p3));
-                ItemSchedular::getSchedular().addItem(it);
+                globalConfig.cwdMutex.unlock();
+                if (it->getOK()) {
+                    ItemSchedular::getSchedular().addItem(it);
+                } else {
+                    delete it;
+                }
             }
         }
         for (auto& ref : IMGs) {
@@ -319,16 +329,11 @@ namespace fc
           back(PIC_2),
           board(PIC_3)
     {
+        ok = true;
         ocrfailed = 0;
         memset(roi, 0, sizeof(int) * 4);
-        if (front.getMat().empty()) {
-            std::cerr << "Open " << PIC_1 << " error.";
-        }
-        if (back.getMat().empty()) {
-            std::cerr << "Open " << PIC_2 << " error.";
-        }
-        if (board.getMat().empty()) {
-            std::cerr << "Open " << PIC_3 << " error.";
+        if (front.getMat().empty() || back.getMat().empty() || board.getMat().empty()) {
+            ok = false;
         }
     }
 
@@ -348,6 +353,9 @@ namespace fc
 
     void Item::SaveFile(const string& product, bool del)
     {
+        if (!ok) {
+            return;
+        }
         string p1 = product + "/" + PIC_1;
         size_t bsize = 1024;
         char* buffer = tb::utils::requestMemory(bsize);
@@ -363,6 +371,7 @@ namespace fc
         }
         int saved = 0;
         string parent;
+        globalConfig.cwdMutex.lock();
         tb::utils::getParentDir(p1, parent);
         getcwd(buffer, bsize);
         chdir(parent.c_str());
@@ -389,6 +398,7 @@ namespace fc
                  saved);
         setDestPath(p1, p2, p3);
         log_DEBUG(buffer);
+        globalConfig.cwdMutex.unlock();
     }
 
     int Item::processingAccurateOCR(int& curl)
