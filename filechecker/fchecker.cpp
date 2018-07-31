@@ -344,13 +344,19 @@ namespace fc
         swap(destPIC[2], p3);
     }
 
-    void Item::SaveFile(const path& product, bool del, const string& code)
+    void Item::SaveFile()
     {
-        const static auto raw = globalConfig.rawPath;
-
         if (!ok) {
             return;
         }
+        const static auto product = globalConfig.productPath;
+        const static bool del = globalConfig.deleteRaw;
+        const static auto raw = globalConfig.rawPath;
+        const static int jpgQuality = globalConfig.jpgQuality;
+        const static int width = globalConfig.destWidth;
+        vector<int> param;
+        param.push_back(cv::IMWRITE_JPEG_QUALITY);
+        param.push_back(jpgQuality);
 
         path destName[3] = {relative(PIC_1, raw), relative(PIC_2, raw), relative(PIC_3, raw)};
 
@@ -362,12 +368,19 @@ namespace fc
         char* buffer = tb::utils::requestMemory(bsize);
 
         int saved = 0;
+        auto parent = p1.parent_path();
+        if (!exists(parent)) {
+            create_directory(parent);
+        }
+        front.resizeToWidth(width);
+        back.resizeToWidth(width);
+        board.resizeToWidth(width);
 
-        saved += front.WriteToFile(p1.c_str());
+        saved += front.WriteToFile(p1.c_str(), param);
 
-        saved += back.WriteToFile(p2.c_str());
+        saved += back.WriteToFile(p2.c_str(), param);
 
-        saved += board.WriteToFile(p3.c_str());
+        saved += board.WriteToFile(p3.c_str(), param);
 
         if (del) {
             unlink(PIC_1);
@@ -550,7 +563,7 @@ namespace fc
             int price;
             i->getCode(fc, bc, price);
             if (fc != "") {
-                i->SaveFile(globalConfig.productPath, globalConfig.deleteRaw, fc);
+                i->SaveFile();
                 std::shared_ptr<Item> iptr;
                 iptr.reset(i);
                 mysql(iptr);
@@ -560,7 +573,7 @@ namespace fc
                 this->addItem(i);
             } else {
                 if (bc != "") {
-                    i->SaveFile(globalConfig.productPath, globalConfig.deleteRaw, bc);
+                    i->SaveFile();
                     std::shared_ptr<Item> iptr;
                     iptr.reset(i);
                     mysql(iptr);

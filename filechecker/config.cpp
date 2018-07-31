@@ -364,7 +364,6 @@ void StartSystem(const Json::Value &jsonRoot)
     releaseMemory(buffer);
 }
 
-#undef getValue
 
 void fcInit(const char *json)
 {
@@ -399,6 +398,16 @@ void fcInit(const char *json)
     StartSystem(root);
     StartRemote(root);
     fc::ImageProcessingStartup(root);
+
+    auto image = root["image"];
+    getValue(destWidth, image, Int, globalConfig.destWidth, 700);
+    getValue(jpgQuality, image, Int, globalConfig.jpgQuality, 95);
+    if (globalConfig.destWidth > 1000 || globalConfig.destWidth < 0) {
+        globalConfig.destWidth = 700;
+    }
+    if (globalConfig.jpgQuality > 100 || globalConfig.jpgQuality < 0) {
+        globalConfig.jpgQuality = 95;
+    }
     tb::utils::destroyFile(buffer, size, &error);
     delete r;
 }
@@ -438,6 +447,8 @@ void SystemConfig::buildDefaultSystemConfig()
     g.uid = g.gid = -1;
     g.threadCount = 1;
 }
+
+#undef getValue
 
 #ifndef PROJECT_VERSION
 #define PROJECT_VERSION "unknown"

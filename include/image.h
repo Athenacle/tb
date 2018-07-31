@@ -106,13 +106,14 @@ namespace fc
         Image(const char*, size_t);
         Image();
         int OpenImageFile(const char*);
-        int WriteToFile(const char* = nullptr);
+        int WriteToFile(const char* = nullptr, const vector<int>& = vector<int>());
 
         int getBarCode(string&, int* = nullptr);
 
         int getItemAccurateCode(string&, string&, int& price, int&, OcrResult&);
         int getItemCode(string&, string&, int& price, int&, OcrResult&, int* = nullptr);
         int AddWaterPrint();
+        void resizeToWidth(int = 700);
     };
 
     class WaterMarker

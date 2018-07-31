@@ -184,9 +184,9 @@ namespace tb
         const unsigned int openFlag = O_CREAT | O_WRONLY;
         int fd = -1;
         if (append) {
-            fd = open(filename, openFlag | O_APPEND);
+            fd = open(filename, openFlag | O_APPEND, 0644);
         } else {
-            fd = open(filename, openFlag);
+            fd = open(filename, openFlag, 0644);
         }
         if (fd == -1) {
             size_t size = strlen(filename) + 64;

@@ -268,11 +268,28 @@ namespace fc
         return ret;
     }
 
-    int Image::WriteToFile(const char* filename)
+    void Image::resizeToWidth(int width)
+    {
+        int currentWidth = imageMat.cols;
+        double scale = width / currentWidth;
+        if (scale - 1.0 < 1e-5) {
+            return;
+        }
+        int type = CV_INTER_LINEAR;
+        if (scale < 1) {
+            type = CV_INTER_AREA;
+        } else {
+            type = CV_INTER_CUBIC;
+        }
+
+        cv::resize(imageMat, imageMat, cv::Size(), scale, scale, type);
+    }
+
+    int Image::WriteToFile(const char* filename, const vector<int>& param)
     {
         if (filename == nullptr)
             filename = this->filename.c_str();
-        return imwrite(filename, imageMat);
+        return imwrite(filename, imageMat, param);
     }
 
     char* OcrResult::dumpJson() const

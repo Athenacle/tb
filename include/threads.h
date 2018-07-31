@@ -287,21 +287,26 @@ namespace tb
         class rwlock
         {
             pthread_rwlock_t _l;
+
         public:
-            rwlock(){
+            rwlock()
+            {
                 pthread_rwlock_init(&_l, nullptr);
             }
             ~rwlock()
             {
                 pthread_rwlock_destroy(&_l);
             }
-            void read(){
+            void read()
+            {
                 pthread_rwlock_rdlock(&_l);
             }
-            void write(){
+            void write()
+            {
                 pthread_rwlock_wrlock(&_l);
             }
-            void unlock(){
+            void unlock()
+            {
                 pthread_rwlock_unlock(&_l);
             }
         };

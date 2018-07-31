@@ -71,6 +71,9 @@ public:
     int sftpPort;
 #endif
 
+    int destWidth;
+    int jpgQuality;
+
     std::map<string, uint64_t> dirs;
 
     static void buildDefaultSystemConfig();
@@ -219,7 +222,7 @@ namespace fc
             p3 = PIC_3;
         }
         int processing();
-        void SaveFile(const path&, bool = false, const string& code = "");
+        void SaveFile();
 
         Item(const char*, const char*, const char*);
 
