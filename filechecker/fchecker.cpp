@@ -556,12 +556,15 @@ namespace fc
             int f = i->getFailed();
             int curl;
 
-            string bc, fc, ocrBc;
-            i->getBarCode(bc);
+            string bc, fc, ocrBc, barCode;
+            i->getBarCode(barCode);
             i->processingAccurateOCR(curl, f > 4);
 
             int price;
             i->getCode(fc, bc, price);
+            if (bc == "" && barCode != ""){
+                bc = barCode;
+            }
             if (fc != "") {
                 i->SaveFile();
                 std::shared_ptr<Item> iptr;
