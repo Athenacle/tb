@@ -455,13 +455,13 @@ namespace fc
     {
         bool ret = false;
         instance.beginTransation();
-        const size_t bsize = 2048;
-        static char buffer[bsize];
+        const size_t bsize = 1 << 14;
+        static char *buffer = new char[bsize];
         while (_q.size() > 0) {
             string sql =
                 "INSERT INTO `Clothes` (`BarCode`, `FullCode`, `FrontPath`, `BackPath`, "
                 "`BoardPath`, `BoardPrice`, `OcrResult`, `DirectoryID`, `RoI`) VALUES ";
-            int i = 1;
+            int i = 0;
             do {
                 auto p = _q.front();
                 _q.pop();
@@ -512,13 +512,14 @@ namespace fc
                          roi[3]);
                 sql = sql + buffer + ",";
                 i++;
+                this->processed++;
             } while (i < 10 && _q.size() > 0);
             if (i > 0) {
                 auto last = sql.find_last_of(',');
                 sql.at(last) = ';';
-                snprintf(buffer, bsize, "Inserting %d into mysql", i);
+                auto ret = instance.query(sql.c_str());
+                snprintf(buffer, bsize, "Inserting %d into mysql, total insert %d, mysql_query returns %d", i, this->processed, ret);
                 log_DEBUG(buffer);
-                instance.query(sql.c_str());
             }
         }
         instance.commit();
@@ -558,7 +559,7 @@ namespace fc
 
             string bc, fc, ocrBc, barCode;
             i->getBarCode(barCode);
-            i->processingAccurateOCR(curl, f > 4);
+            i->processingAccurateOCR(curl, f > 5);
 
             int price;
             i->getCode(fc, bc, price);

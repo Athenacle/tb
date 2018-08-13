@@ -288,11 +288,18 @@ namespace fc
 
         sql& instance;
         virtual bool processing(queueType&) override;
-
+        int processed;
     public:
         MySQLTimer()
             : ItemRemoteTimer(10, "mysql"), instance(tb::remote::MySQLWorker::getMySQLInstance())
         {
+            processed = 0;
+        }
+        ~MySQLTimer()
+        {
+            const size_t bsize = 256;
+            char buf[bsize];
+            snprintf(buf,235, "MySQL: total %d items processed.", processed);
         }
     };
 
