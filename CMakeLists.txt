@@ -122,6 +122,8 @@ ADD_EXECUTABLE(tbTest ${TB_TEST_SOURCE_LIST}
 
 ADD_DEPENDENCIES(tbTest gtest)
 
+ADD_EXECUTABLE(barCodeTest ${CMAKE_SOURCE_DIR}/test/utils/barCode.cpp)
+
 ADD_EXECUTABLE(sftpTest ${CMAKE_SOURCE_DIR}/test/utils/sftptest.cpp)
 
 ADD_EXECUTABLE(imgTest ${CMAKE_SOURCE_DIR}/test/utils/img.cpp)
@@ -130,6 +132,7 @@ ADD_EXECUTABLE(logTest ${CMAKE_SOURCE_DIR}/test/utils/log_test.cpp)
 
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/test)
 
+TARGET_LINK_LIBRARIES(barCodeTest tb ${libList})
 TARGET_LINK_LIBRARIES(imgTest tb ${libList})
 TARGET_LINK_LIBRARIES(tbTest libgtest tb ${libList})
 TARGET_LINK_LIBRARIES(logTest tb pthread ${libList})

@@ -485,6 +485,7 @@ namespace fc
                 p->getDestName(pic[0], pic[1], pic[2]);
                 p->getOcrJson(json);
                 p->getCode(fullcode, barcode, price);
+                p->getBarCode(barcode);
                 for (int i = 0; i < 3; i++) {
                     auto fn = globalConfig.productPath / pic[i];
                     tb::utils::MD5HashFile(fn.c_str(), md5[i]);
@@ -576,7 +577,7 @@ namespace fc
                 i->ocrFailed();
                 this->addItem(i);
             } else {
-                if (bc != "") {
+                if (barCode != "") {
                     i->SaveFile();
                     std::shared_ptr<Item> iptr;
                     iptr.reset(i);
