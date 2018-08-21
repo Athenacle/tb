@@ -358,11 +358,23 @@ namespace fc
         param.push_back(cv::IMWRITE_JPEG_QUALITY);
         param.push_back(jpgQuality);
 
-        path destName[3] = {relative(PIC_1, raw), relative(PIC_2, raw), relative(PIC_3, raw)};
+        path parentDirectory = path(PIC_1).parent_path().filename();
 
-        path p1 = product / destName[0];
-        path p2 = product / destName[1];
-        path p3 = product / destName[2];
+        const string& code = this->bcode == "" ? "xxxx" : this->bcode;
+
+        path pic1 = parentDirectory
+                    / (parentDirectory.filename().native() + "_" + code + "_"
+                       + path(PIC_1).filename().native());
+        path pic2 = parentDirectory
+                    / (parentDirectory.filename().native() + "_" + code + "_"
+                       + path(PIC_2).filename().native());
+        path pic3 = parentDirectory
+                    / (parentDirectory.filename().native() + "_" + code + "_"
+                       + path(PIC_3).filename().native());
+
+        path p1 = product / pic1;
+        path p2 = product / pic2;
+        path p3 = product / pic3;
 
         size_t bsize = 1024;
         char* buffer = tb::utils::requestMemory(bsize);
@@ -388,7 +400,7 @@ namespace fc
             unlink(PIC_3);
         }
         snprintf(buffer, bsize, "Saving %s -> %s, Status %d", PIC_1, p1.c_str(), saved);
-        setDestPath(destName[0], destName[1], destName[2]);
+        setDestPath(pic1, pic2, pic3);
         log_DEBUG(buffer);
     }
 
@@ -456,7 +468,7 @@ namespace fc
         bool ret = false;
         instance.beginTransation();
         const size_t bsize = 1 << 14;
-        static char *buffer = new char[bsize];
+        static char* buffer = new char[bsize];
         while (_q.size() > 0) {
             string sql =
                 "INSERT INTO `Clothes` (`BarCode`, `FullCode`, `FrontPath`, `BackPath`, "
@@ -519,7 +531,12 @@ namespace fc
                 auto last = sql.find_last_of(',');
                 sql.at(last) = ';';
                 auto ret = instance.query(sql.c_str());
-                snprintf(buffer, bsize, "Inserting %d into mysql, total insert %d, mysql_query returns %d", i, this->processed, ret);
+                snprintf(buffer,
+                         bsize,
+                         "Inserting %d into mysql, total insert %d, mysql_query returns %d",
+                         i,
+                         this->processed,
+                         ret);
                 log_DEBUG(buffer);
             }
         }
@@ -564,7 +581,7 @@ namespace fc
 
             int price;
             i->getCode(fc, bc, price);
-            if (bc == "" && barCode != ""){
+            if (bc == "" && barCode != "") {
                 bc = barCode;
             }
             if (fc != "") {
