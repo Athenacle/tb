@@ -594,7 +594,7 @@ namespace fc
                 i->ocrFailed();
                 this->addItem(i);
             } else {
-                if (barCode != "") {
+                if (bc != "") {
                     i->SaveFile();
                     std::shared_ptr<Item> iptr;
                     iptr.reset(i);
